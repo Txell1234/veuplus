@@ -670,7 +670,9 @@ async def chat_with_bot(request: ChatRequest):
             else:
                 bot_client = openai_client
             
-            response = bot_client.chat.completions.create(
+            # Updated response with enhanced chatbot configuration - use new OpenAI client
+            client = openai.OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
                 model=bot.get("model_name", "gpt-4"),
                 messages=messages,
                 temperature=bot.get("temperature", 0.7),
