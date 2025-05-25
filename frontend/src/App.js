@@ -84,165 +84,15 @@ const translations = {
     catalan: "Català",
     spanish: "Espanyol", 
     french: "Francès",
-    english: "Anglès"
-  },
-  es: {
-    dashboard: "Panel",
-    voiceLibrary: "Biblioteca de Voces",
-    speechSynthesis: "Síntesis de Voz",
-    chatbots: "Chatbots",
-    voicebots: "Voicebots",
-    knowledgeBase: "Base de Conocimiento",
-    welcome: "Bienvenido a VeuPlus",
-    voicesTrained: "Voces Entrenadas",
-    readyForSynthesis: "Listas para síntesis",
-    activeBots: "Bots activos",
-    voiceAssistants: "Asistentes de voz",
-    documentsProcessed: "Documentos procesados",
-    quickActions: "Acciones Rápidas",
-    trainNewVoice: "Entrenar Nueva Voz",
-    createChatbot: "Crear Chatbot",
-    buildVoicebot: "Construir Voicebot",
-    recentActivity: "Actividad Reciente",
-    catalanDialects: "Dialectos Catalanes",
-    voiceTraining: "Entrenamiento de Voz",
-    trainNewVoiceTitle: "Entrenar Nueva Voz",
-    voiceName: "Nombre de la Voz",
-    catalanDialect: "Dialecto Catalán",
-    description: "Descripción",
-    audioFiles: "Archivos de Audio",
-    uploadMultipleFiles: "Sube múltiples archivos de audio (mínimo 30 minutos recomendado)",
-    startTraining: "Iniciar Entrenamiento",
-    training: "Entrenando...",
-    trainedVoices: "Voces Entrenadas",
-    textToSynthesize: "Texto a Sintetizar",
-    selectVoice: "Seleccionar Voz",
-    selectTrainedVoice: "Selecciona una voz entrenada...",
-    generateSpeech: "Generar Voz",
-    synthesizing: "Sintetizando...",
-    generatedAudio: "Audio Generado",
-    downloadAudio: "Descargar Audio",
-    createNewChatbot: "Crear Nuevo Chatbot",
-    chatbotName: "Nombre del Chatbot",
-    llmProvider: "Proveedor LLM",
-    modelName: "Nombre del Modelo",
-    temperature: "Temperatura",
-    systemPrompt: "Prompt del Sistema",
-    apiKey: "Clave API",
-    knowledgeBaseSources: "Fuentes de la Base de Conocimiento",
-    selectKnowledgeSources: "Selecciona fuentes de conocimiento...",
-    createChatbotBtn: "Crear Chatbot",
-    cancel: "Cancelar",
-    yourChatbots: "Tus Chatbots",
-    testChat: "Probar Chat",
-    testing: "Probando",
-    typeMessage: "Escribe tu mensaje...",
-    send: "Enviar",
-    supportedLanguages: "Idiomas Soportados",
-    defaultLanguage: "Idioma por Defecto",
-    createNewVoicebot: "Crear Nuevo Voicebot",
-    selectVoiceModel: "Seleccionar Modelo de Voz",
-    voicebotName: "Nombre del Voicebot",
-    createVoicebotBtn: "Crear Voicebot",
-    yourVoicebots: "Tus Voicebots",
-    testVoiceChat: "Probar Chat de Voz",
-    uploadDocuments: "Subir Documentos",
-    uploading: "Subiendo...",
-    uploadedDocuments: "Documentos Subidos",
-    ready: "Listo",
-    pending: "Pendiente",
-    error: "Error",
-    status: "Estado",
-    name: "Nombre",
-    type: "Tipo",
-    actions: "Acciones",
-    edit: "Editar",
-    delete: "Eliminar",
-    save: "Guardar",
-    close: "Cerrar",
-    catalan: "Catalán",
-    spanish: "Español", 
-    french: "Francés",
-    english: "Inglés"
-  },
-  fr: {
-    dashboard: "Tableau de bord",
-    voiceLibrary: "Bibliothèque de Voix",
-    speechSynthesis: "Synthèse Vocale",
-    chatbots: "Chatbots",
-    voicebots: "Voicebots",
-    knowledgeBase: "Base de Connaissances",
-    welcome: "Bienvenue à VeuPlus",
-    voicesTrained: "Voix Entraînées",
-    readyForSynthesis: "Prêtes pour la synthèse",
-    activeBots: "Bots actifs",
-    voiceAssistants: "Assistants vocaux",
-    documentsProcessed: "Documents traités",
-    quickActions: "Actions Rapides",
-    trainNewVoice: "Entraîner Nouvelle Voix",
-    createChatbot: "Créer Chatbot",
-    buildVoicebot: "Construire Voicebot",
-    recentActivity: "Activité Récente",
-    catalanDialects: "Dialectes Catalans",
-    voiceTraining: "Entraînement de Voix",
-    trainNewVoiceTitle: "Entraîner Nouvelle Voix",
-    voiceName: "Nom de la Voix",
-    catalanDialect: "Dialecte Catalan",
-    description: "Description",
-    audioFiles: "Fichiers Audio",
-    uploadMultipleFiles: "Téléchargez plusieurs fichiers audio (minimum 30 minutes recommandé)",
-    startTraining: "Commencer l'Entraînement",
-    training: "Entraînement...",
-    trainedVoices: "Voix Entraînées",
-    textToSynthesize: "Texte à Synthétiser",
-    selectVoice: "Sélectionner Voix",
-    selectTrainedVoice: "Sélectionnez une voix entraînée...",
-    generateSpeech: "Générer Voix",
-    synthesizing: "Synthèse...",
-    generatedAudio: "Audio Généré",
-    downloadAudio: "Télécharger Audio",
-    createNewChatbot: "Créer Nouveau Chatbot",
-    chatbotName: "Nom du Chatbot",
-    llmProvider: "Fournisseur LLM",
-    modelName: "Nom du Modèle",
-    temperature: "Température",
-    systemPrompt: "Prompt Système",
-    apiKey: "Clé API",
-    knowledgeBaseSources: "Sources Base de Connaissances",
-    selectKnowledgeSources: "Sélectionner sources de connaissances...",
-    createChatbotBtn: "Créer Chatbot",
-    cancel: "Annuler",
-    yourChatbots: "Vos Chatbots",
-    testChat: "Tester Chat",
-    testing: "Test",
-    typeMessage: "Tapez votre message...",
-    send: "Envoyer",
-    supportedLanguages: "Langues Supportées",
-    defaultLanguage: "Langue par Défaut",
-    createNewVoicebot: "Créer Nouveau Voicebot",
-    selectVoiceModel: "Sélectionner Modèle de Voix",
-    voicebotName: "Nom du Voicebot",
-    createVoicebotBtn: "Créer Voicebot",
-    yourVoicebots: "Vos Voicebots",
-    testVoiceChat: "Tester Chat Vocal",
-    uploadDocuments: "Télécharger Documents",
-    uploading: "Téléchargement...",
-    uploadedDocuments: "Documents Téléchargés",
-    ready: "Prêt",
-    pending: "En attente",
-    error: "Erreur",
-    status: "Statut",
-    name: "Nom",
-    type: "Type",
-    actions: "Actions",
-    edit: "Modifier",
-    delete: "Supprimer",
-    save: "Sauvegarder",
-    close: "Fermer",
-    catalan: "Catalan",
-    spanish: "Espagnol", 
-    french: "Français",
-    english: "Anglais"
+    english: "Anglès",
+    playAudio: "Reproduir Àudio",
+    stopAudio: "Aturar Àudio",
+    voiceQuality: "Qualitat de Veu",
+    hyperrealistic: "Hiperrealistic",
+    enhanced: "Millorat",
+    selectFromKnowledge: "Seleccionar de la Base de Coneixement",
+    knowledgeSelected: "documents seleccionats",
+    selectDocuments: "Seleccionar Documents"
   },
   en: {
     dashboard: "Dashboard",
@@ -321,7 +171,15 @@ const translations = {
     catalan: "Catalan",
     spanish: "Spanish", 
     french: "French",
-    english: "English"
+    english: "English",
+    playAudio: "Play Audio",
+    stopAudio: "Stop Audio",
+    voiceQuality: "Voice Quality",
+    hyperrealistic: "Hyperrealistic",
+    enhanced: "Enhanced",
+    selectFromKnowledge: "Select from Knowledge Base",
+    knowledgeSelected: "documents selected",
+    selectDocuments: "Select Documents"
   }
 };
 
@@ -353,8 +211,20 @@ function App() {
   const [knowledgeBase, setKnowledgeBase] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Modals state
+  const [showVoiceTrainingModal, setShowVoiceTrainingModal] = useState(false);
+  const [showChatbotModal, setShowChatbotModal] = useState(false);
+  const [showVoicebotModal, setShowVoicebotModal] = useState(false);
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [showTestChatModal, setShowTestChatModal] = useState(false);
+  const [showTestVoiceModal, setShowTestVoiceModal] = useState(false);
+
+  // Selected items for modals
+  const [selectedChatbot, setSelectedChatbot] = useState(null);
+  const [selectedVoicebot, setSelectedVoicebot] = useState(null);
+
   // Get translation function
-  const t = (key) => translations[currentLanguage][key] || key;
+  const t = (key) => translations[currentLanguage][key] || translations.en[key] || key;
 
   // Load data on mount
   useEffect(() => {
@@ -530,7 +400,7 @@ function App() {
               {t('welcome')}
             </h1>
             <p className="text-xl text-gray-600">
-              Professional Catalan Voice AI Platform
+              Professional Catalan Voice AI Platform with Hyperrealistic Voices
             </p>
           </div>
           
@@ -598,7 +468,7 @@ function App() {
               </h3>
               <div className="space-y-4">
                 <button 
-                  onClick={() => setCurrentView('voices')}
+                  onClick={() => setShowVoiceTrainingModal(true)}
                   className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   <div className="flex items-center justify-center">
@@ -607,7 +477,7 @@ function App() {
                   </div>
                 </button>
                 <button 
-                  onClick={() => setCurrentView('chatbots')}
+                  onClick={() => setShowChatbotModal(true)}
                   className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   <div className="flex items-center justify-center">
@@ -616,7 +486,7 @@ function App() {
                   </div>
                 </button>
                 <button 
-                  onClick={() => setCurrentView('voicebots')}
+                  onClick={() => setShowVoicebotModal(true)}
                   className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-2xl hover:from-purple-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   <div className="flex items-center justify-center">
@@ -635,19 +505,19 @@ function App() {
               <div className="space-y-4">
                 <div className="flex items-center p-3 bg-green-50 rounded-2xl border border-green-100">
                   <div className="w-3 h-3 bg-green-500 rounded-full mr-4 animate-pulse"></div>
-                  <span className="text-gray-700 font-medium">Voice training completed</span>
+                  <span className="text-gray-700 font-medium">Hyperrealistic voice trained</span>
                 </div>
                 <div className="flex items-center p-3 bg-blue-50 rounded-2xl border border-blue-100">
                   <div className="w-3 h-3 bg-blue-500 rounded-full mr-4 animate-pulse"></div>
-                  <span className="text-gray-700 font-medium">New chatbot created</span>
+                  <span className="text-gray-700 font-medium">Catalan dataset loaded</span>
                 </div>
                 <div className="flex items-center p-3 bg-orange-50 rounded-2xl border border-orange-100">
                   <div className="w-3 h-3 bg-orange-500 rounded-full mr-4 animate-pulse"></div>
-                  <span className="text-gray-700 font-medium">Documents uploaded</span>
+                  <span className="text-gray-700 font-medium">OpenSLR voices ready</span>
                 </div>
                 <div className="flex items-center p-3 bg-purple-50 rounded-2xl border border-purple-100">
                   <div className="w-3 h-3 bg-purple-500 rounded-full mr-4 animate-pulse"></div>
-                  <span className="text-gray-700 font-medium">Voicebot deployed</span>
+                  <span className="text-gray-700 font-medium">FLOR-6.3B model active</span>
                 </div>
               </div>
             </div>
@@ -672,40 +542,849 @@ function App() {
     </div>
   );
 
-  // Placeholder for other components (VoiceTraining, SpeechSynthesis, etc.)
+  // Voice Training Modal Component
+  const VoiceTrainingModal = () => {
+    const [formData, setFormData] = useState({
+      name: '',
+      dialect: 'central',
+      description: '',
+      audioFiles: []
+    });
+    const [isTraining, setIsTraining] = useState(false);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setIsTraining(true);
+      
+      try {
+        const formDataToSend = new FormData();
+        formDataToSend.append('name', formData.name);
+        formDataToSend.append('dialect', formData.dialect);
+        formDataToSend.append('description', formData.description);
+        
+        for (let file of formData.audioFiles) {
+          formDataToSend.append('audio_files', file);
+        }
+        
+        await axios.post(`${API}/voices/train`, formDataToSend, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        await loadData();
+        setShowVoiceTrainingModal(false);
+        setFormData({ name: '', dialect: 'central', description: '', audioFiles: [] });
+      } catch (error) {
+        console.error('Error training voice:', error);
+      } finally {
+        setIsTraining(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-3xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              {t('trainNewVoiceTitle')}
+            </h2>
+            <button
+              onClick={() => setShowVoiceTrainingModal(false)}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('voiceName')}
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('catalanDialect')}
+              </label>
+              <select
+                value={formData.dialect}
+                onChange={(e) => setFormData({...formData, dialect: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                {CATALAN_DIALECTS.map(dialect => (
+                  <option key={dialect.id} value={dialect.id}>
+                    {dialect.name} - {dialect.region}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('description')}
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24"
+                placeholder="Descripció de la veu..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('audioFiles')}
+              </label>
+              <input
+                type="file"
+                multiple
+                accept="audio/*"
+                onChange={(e) => setFormData({...formData, audioFiles: Array.from(e.target.files)})}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                {t('uploadMultipleFiles')}
+              </p>
+            </div>
+            
+            <div className="flex space-x-4">
+              <button
+                type="button"
+                onClick={() => setShowVoiceTrainingModal(false)}
+                className="flex-1 py-3 px-6 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={isTraining}
+                className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-xl hover:from-purple-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50"
+              >
+                {isTraining ? t('training') : t('startTraining')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // Comprehensive Speech Synthesis View
+  const SpeechSynthesis = () => {
+    const [text, setText] = useState('');
+    const [selectedVoice, setSelectedVoice] = useState('');
+    const [isSynthesizing, setIsSynthesizing] = useState(false);
+    const [audioUrl, setAudioUrl] = useState('');
+    const [audioData, setAudioData] = useState(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const handleSynthesis = async () => {
+      if (!text || !selectedVoice) return;
+      
+      setIsSynthesizing(true);
+      try {
+        const response = await axios.post(`${API}/synthesis`, {
+          text,
+          voice_model_id: selectedVoice,
+          language: 'ca'
+        });
+        
+        setAudioUrl(response.data.audio_url);
+        setAudioData(response.data);
+      } catch (error) {
+        console.error('Error synthesizing speech:', error);
+      } finally {
+        setIsSynthesizing(false);
+      }
+    };
+
+    const playAudio = () => {
+      if (audioUrl) {
+        const audio = new Audio(`${BACKEND_URL}${audioUrl}`);
+        setIsPlaying(true);
+        audio.play();
+        audio.onended = () => setIsPlaying(false);
+      }
+    };
+
+    return (
+      <div className="p-8 bg-gradient-to-br from-green-50 via-blue-50 to-teal-50 min-h-screen">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-8">
+            {t('speechSynthesis')}
+          </h2>
+          
+          <div className="bg-white rounded-3xl shadow-xl p-8">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-lg font-semibold text-gray-700 mb-3">
+                  {t('textToSynthesize')}
+                </label>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="w-full p-4 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-green-500 focus:border-transparent h-32 text-lg"
+                  placeholder="Escriu el text que vols sintetitzar..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-lg font-semibold text-gray-700 mb-3">
+                  {t('selectVoice')}
+                </label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  className="w-full p-4 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg"
+                >
+                  <option value="">{t('selectTrainedVoice')}</option>
+                  {voices.filter(v => v.status === 'ready').map(voice => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} - {voice.dialect}
+                      {voice.training_quality && (
+                        <span className="text-sm"> ({voice.training_quality})</span>
+                      )}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <button
+                onClick={handleSynthesis}
+                disabled={!text || !selectedVoice || isSynthesizing}
+                className="w-full py-4 px-8 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-2xl hover:from-green-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 text-lg font-semibold"
+              >
+                {isSynthesizing ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                    {t('synthesizing')}
+                  </div>
+                ) : (
+                  t('generateSpeech')
+                )}
+              </button>
+              
+              {audioData && (
+                <div className="mt-8 p-6 bg-gray-50 rounded-2xl">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">{t('generatedAudio')}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p><strong>Voice:</strong> {audioData.voice_model}</p>
+                      <p><strong>Dialect:</strong> {audioData.dialect}</p>
+                      <p><strong>Quality:</strong> {audioData.quality}</p>
+                      <p><strong>Method:</strong> {audioData.synthesis_method}</p>
+                      {audioData.real_audio && (
+                        <p className="text-green-600 font-semibold">✅ Real Catalan Voice!</p>
+                      )}
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={playAudio}
+                        disabled={isPlaying}
+                        className="flex-1 py-3 px-6 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50"
+                      >
+                        {isPlaying ? t('stopAudio') : t('playAudio')}
+                      </button>
+                      <a
+                        href={`${BACKEND_URL}${audioUrl}`}
+                        download
+                        className="flex-1 py-3 px-6 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors duration-200 text-center"
+                      >
+                        {t('downloadAudio')}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Voice Training View
   const VoiceTraining = () => (
     <div className="p-8 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 min-h-screen">
-      <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-8">
-        {t('voiceTraining')}
-      </h2>
-      <div className="bg-white p-8 rounded-3xl shadow-xl">
-        <p className="text-gray-600">Voice training interface will be implemented here...</p>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            {t('voiceTraining')}
+          </h2>
+          <button
+            onClick={() => setShowVoiceTrainingModal(true)}
+            className="py-3 px-6 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-2xl hover:from-purple-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+          >
+            {t('trainNewVoice')}
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-3xl shadow-xl p-8">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6">{t('trainedVoices')}</h3>
+          
+          {voices.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🎤</div>
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">No voices trained yet</h3>
+              <p className="text-gray-500">Train your first hyperrealistic Catalan voice!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {voices.map(voice => (
+                <div key={voice.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow duration-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-gray-800">{voice.name}</h4>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      voice.status === 'ready' ? 'bg-green-100 text-green-800' :
+                      voice.status === 'training' ? 'bg-yellow-100 text-yellow-800' :
+                      voice.status === 'pending' ? 'bg-gray-100 text-gray-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {t(voice.status)}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p><strong>Dialect:</strong> {CATALAN_DIALECTS.find(d => d.id === voice.dialect)?.name}</p>
+                    {voice.description && <p><strong>Description:</strong> {voice.description}</p>}
+                    {voice.training_quality && (
+                      <p><strong>Quality:</strong> 
+                        <span className={`ml-1 px-2 py-1 rounded text-xs ${
+                          voice.training_quality.includes('hyperrealistic') ? 'bg-purple-100 text-purple-800' :
+                          voice.training_quality.includes('enhanced') ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {voice.training_quality}
+                        </span>
+                      </p>
+                    )}
+                    {voice.catalan_enhanced && (
+                      <p className="text-green-600 font-semibold">✅ Catalan Enhanced</p>
+                    )}
+                    {voice.phonetic_enhanced && (
+                      <p className="text-blue-600 font-semibold">🎯 Phonetic Enhanced</p>
+                    )}
+                  </div>
+                  
+                  {voice.status === 'training' && voice.progress !== undefined && (
+                    <div className="mt-4">
+                      <div className="flex justify-between text-sm text-gray-600 mb-1">
+                        <span>Training Progress</span>
+                        <span>{voice.progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${voice.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 
-  const SpeechSynthesis = () => (
-    <div className="p-8 bg-gradient-to-br from-green-50 via-blue-50 to-teal-50 min-h-screen">
-      <h2 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-8">
-        {t('speechSynthesis')}
-      </h2>
-      <div className="bg-white p-8 rounded-3xl shadow-xl">
-        <p className="text-gray-600">Speech synthesis interface will be implemented here...</p>
-      </div>
-    </div>
-  );
+  // Knowledge Base Selection Modal
+  const KnowledgeSelectionModal = ({ isOpen, onClose, onSelect, selectedIds = [] }) => {
+    const [tempSelected, setTempSelected] = useState(selectedIds);
 
+    const handleToggle = (id) => {
+      setTempSelected(prev => 
+        prev.includes(id) 
+          ? prev.filter(item => item !== id)
+          : [...prev, id]
+      );
+    };
+
+    const handleConfirm = () => {
+      onSelect(tempSelected);
+      onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-3xl p-8 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-gray-800">{t('selectFromKnowledge')}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          </div>
+          
+          <div className="space-y-3 mb-6">
+            {knowledgeBase.map(item => (
+              <div key={item.id} className="flex items-center p-3 border border-gray-200 rounded-xl hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={tempSelected.includes(item.id)}
+                  onChange={() => handleToggle(item.id)}
+                  className="mr-3 h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <h4 className="font-medium text-gray-800">{item.name}</h4>
+                  <p className="text-sm text-gray-500">{item.file_type.toUpperCase()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex space-x-4">
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 px-6 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 py-3 px-6 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
+            >
+              {t('selectDocuments')} ({tempSelected.length})
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Chatbot Creation Modal
+  const ChatbotModal = () => {
+    const [formData, setFormData] = useState({
+      name: '',
+      llm_provider: 'openai',
+      model_name: 'gpt-4',
+      temperature: 0.7,
+      system_prompt: 'Ets un assistent d\'IA que parla català. Respon sempre en català de manera útil i amigable.',
+      api_key: '',
+      knowledge_base_ids: []
+    });
+    const [isCreating, setIsCreating] = useState(false);
+    const [showKnowledgeSelection, setShowKnowledgeSelection] = useState(false);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setIsCreating(true);
+      
+      try {
+        await axios.post(`${API}/chatbots`, formData);
+        await loadData();
+        setShowChatbotModal(false);
+        setFormData({
+          name: '',
+          llm_provider: 'openai',
+          model_name: 'gpt-4',
+          temperature: 0.7,
+          system_prompt: 'Ets un assistent d\'IA que parla català. Respon sempre en català de manera útil i amigable.',
+          api_key: '',
+          knowledge_base_ids: []
+        });
+      } catch (error) {
+        console.error('Error creating chatbot:', error);
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    return (
+      <>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                {t('createNewChatbot')}
+              </h2>
+              <button
+                onClick={() => setShowChatbotModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('chatbotName')}
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('llmProvider')}
+                  </label>
+                  <select
+                    value={formData.llm_provider}
+                    onChange={(e) => setFormData({...formData, llm_provider: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="claude">Claude</option>
+                    <option value="gemini">Gemini</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('modelName')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.model_name}
+                    onChange={(e) => setFormData({...formData, model_name: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('temperature')} ({formData.temperature})
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={formData.temperature}
+                  onChange={(e) => setFormData({...formData, temperature: parseFloat(e.target.value)})}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('systemPrompt')}
+                </label>
+                <textarea
+                  value={formData.system_prompt}
+                  onChange={(e) => setFormData({...formData, system_prompt: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent h-24"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('apiKey')} (Optional - uses global key if empty)
+                </label>
+                <input
+                  type="password"
+                  value={formData.api_key}
+                  onChange={(e) => setFormData({...formData, api_key: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Leave empty to use global API key"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('knowledgeBaseSources')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowKnowledgeSelection(true)}
+                  className="w-full p-3 border border-gray-300 rounded-xl text-left hover:bg-gray-50 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  {formData.knowledge_base_ids.length > 0 
+                    ? `${formData.knowledge_base_ids.length} ${t('knowledgeSelected')}`
+                    : t('selectKnowledgeSources')
+                  }
+                </button>
+              </div>
+              
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setShowChatbotModal(false)}
+                  className="flex-1 py-3 px-6 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="flex-1 py-3 px-6 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-xl hover:from-green-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50"
+                >
+                  {isCreating ? t('creating') : t('createChatbotBtn')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <KnowledgeSelectionModal
+          isOpen={showKnowledgeSelection}
+          onClose={() => setShowKnowledgeSelection(false)}
+          onSelect={(ids) => setFormData({...formData, knowledge_base_ids: ids})}
+          selectedIds={formData.knowledge_base_ids}
+        />
+      </>
+    );
+  };
+
+  // Chat Test Modal
+  const ChatTestModal = ({ bot, onClose }) => {
+    const [messages, setMessages] = useState([]);
+    const [inputMessage, setInputMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+
+    const sendMessage = async () => {
+      if (!inputMessage.trim()) return;
+      
+      const userMessage = { role: 'user', content: inputMessage };
+      setMessages(prev => [...prev, userMessage]);
+      setIsSending(true);
+      
+      try {
+        const response = await axios.post(`${API}/chatbots/chat`, {
+          message: inputMessage,
+          bot_id: bot.id,
+          conversation_history: messages
+        });
+        
+        const botMessage = { role: 'assistant', content: response.data.reply };
+        setMessages(prev => [...prev, botMessage]);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        const errorMessage = { role: 'assistant', content: 'Error: Unable to get response' };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsSending(false);
+        setInputMessage('');
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-3xl p-6 max-w-2xl w-full mx-4 h-[600px] flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-gray-800">Test: {bot.name}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 border border-gray-200 rounded-xl">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                  msg.role === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {isSending && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-2xl">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !isSending && sendMessage()}
+              className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder={t('typeMessage')}
+              disabled={isSending}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isSending || !inputMessage.trim()}
+              className="py-3 px-6 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50"
+            >
+              {t('send')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Chatbots View
   const Chatbots = () => (
     <div className="p-8 bg-gradient-to-br from-orange-50 via-pink-50 to-red-50 min-h-screen">
-      <h2 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent mb-8">
-        {t('chatbots')}
-      </h2>
-      <div className="bg-white p-8 rounded-3xl shadow-xl">
-        <p className="text-gray-600">Chatbot interface will be implemented here...</p>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
+            {t('chatbots')}
+          </h2>
+          <button
+            onClick={() => setShowChatbotModal(true)}
+            className="py-3 px-6 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-2xl hover:from-green-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+          >
+            {t('createNewChatbot')}
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-3xl shadow-xl p-8">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6">{t('yourChatbots')}</h3>
+          
+          {chatbots.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">💬</div>
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">No chatbots created yet</h3>
+              <p className="text-gray-500">Create your first AI chatbot!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {chatbots.map(bot => (
+                <div key={bot.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow duration-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-gray-800">{bot.name}</h4>
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      {bot.llm_provider}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm text-gray-600 mb-4">
+                    <p><strong>Model:</strong> {bot.model_name}</p>
+                    <p><strong>Temperature:</strong> {bot.temperature}</p>
+                    {bot.knowledge_base_ids && bot.knowledge_base_ids.length > 0 && (
+                      <p><strong>Knowledge:</strong> {bot.knowledge_base_ids.length} documents</p>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedChatbot(bot);
+                      setShowTestChatModal(true);
+                    }}
+                    className="w-full py-2 px-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors duration-200"
+                  >
+                    {t('testChat')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 
+  // Knowledge Base View
+  const KnowledgeBase = () => {
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileUpload = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      
+      setIsUploading(true);
+      
+      try {
+        const formData = new FormData();
+        files.forEach(file => {
+          formData.append('files', file);
+        });
+        formData.append('name', 'Uploaded Documents');
+        
+        await axios.post(`${API}/knowledge-base`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        await loadData();
+      } catch (error) {
+        console.error('Error uploading files:', error);
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
+    return (
+      <div className="p-8 bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 min-h-screen">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent mb-8">
+            {t('knowledgeBase')}
+          </h2>
+          
+          <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+            <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
+              <div className="text-4xl mb-4">📄</div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">{t('uploadDocuments')}</h3>
+              <p className="text-gray-500 mb-4">Upload PDF, TXT files or provide URLs</p>
+              
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.txt,.docx"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+                id="file-upload"
+              />
+              <label
+                htmlFor="file-upload"
+                className={`inline-block py-3 px-6 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-2xl hover:from-indigo-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 cursor-pointer ${
+                  isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isUploading ? t('uploading') : t('uploadDocuments')}
+              </label>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-3xl shadow-xl p-8">
+            <h3 className="text-2xl font-bold text-gray-800 mb-6">{t('uploadedDocuments')}</h3>
+            
+            {knowledgeBase.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📚</div>
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">No documents uploaded</h3>
+                <p className="text-gray-500">Upload your first document to get started!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {knowledgeBase.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-2xl hover:bg-gray-50">
+                    <div>
+                      <h4 className="font-semibold text-gray-800">{item.name}</h4>
+                      <p className="text-sm text-gray-500">{item.file_type.toUpperCase()}</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      {t('ready')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Placeholder for Voicebots view
   const Voicebots = () => (
     <div className="p-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 min-h-screen">
       <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-8">
@@ -713,17 +1392,6 @@ function App() {
       </h2>
       <div className="bg-white p-8 rounded-3xl shadow-xl">
         <p className="text-gray-600">Voicebot interface will be implemented here...</p>
-      </div>
-    </div>
-  );
-
-  const KnowledgeBase = () => (
-    <div className="p-8 bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 min-h-screen">
-      <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent mb-8">
-        {t('knowledgeBase')}
-      </h2>
-      <div className="bg-white p-8 rounded-3xl shadow-xl">
-        <p className="text-gray-600">Knowledge base interface will be implemented here...</p>
       </div>
     </div>
   );
@@ -747,6 +1415,19 @@ function App() {
       <div className="flex-1">
         {renderView()}
       </div>
+      
+      {/* Modals */}
+      {showVoiceTrainingModal && <VoiceTrainingModal />}
+      {showChatbotModal && <ChatbotModal />}
+      {showTestChatModal && selectedChatbot && (
+        <ChatTestModal 
+          bot={selectedChatbot} 
+          onClose={() => {
+            setShowTestChatModal(false);
+            setSelectedChatbot(null);
+          }} 
+        />
+      )}
     </div>
   );
 }
