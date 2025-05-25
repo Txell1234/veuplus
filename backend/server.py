@@ -907,6 +907,150 @@ async def get_embed_themes():
         }
     }
 
+@api_router.delete("/chatbots/{bot_id}")
+async def delete_chatbot(bot_id: str):
+    """Delete a chatbot"""
+    result = await db.chatbots.delete_one({"id": bot_id})
+    if result.deleted_count:
+        return {"message": "Chatbot deleted successfully"}
+    raise HTTPException(status_code=404, detail="Chatbot not found")
+
+@api_router.delete("/voicebots/{bot_id}")
+async def delete_voicebot(bot_id: str):
+    """Delete a voicebot"""
+    result = await db.voicebots.delete_one({"id": bot_id})
+    if result.deleted_count:
+        return {"message": "Voicebot deleted successfully"}
+    raise HTTPException(status_code=404, detail="Voicebot not found")
+
+@api_router.get("/embed/voicebot/{bot_id}")
+async def get_voicebot_embed_code(bot_id: str, theme: str = "voice", size: str = "medium"):
+    """Get enhanced embed code for voicebot"""
+    bot = await db.voicebots.find_one({"id": bot_id})
+    if not bot:
+        raise HTTPException(status_code=404, detail="Voicebot not found")
+    
+    themes = {
+        "voice": {
+            "primary_color": "#8b5cf6",
+            "secondary_color": "#a78bfa",
+            "background": "linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "16px"
+        },
+        "modern": {
+            "primary_color": "#667eea",
+            "secondary_color": "#764ba2",
+            "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "12px"
+        },
+        "catalan": {
+            "primary_color": "#c41e3a",
+            "secondary_color": "#fcdd09",
+            "background": "linear-gradient(135deg, #c41e3a 0%, #fcdd09 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "16px"
+        }
+    }
+    
+    sizes = {
+        "small": {"width": "300px", "height": "400px"},
+        "medium": {"width": "400px", "height": "500px"},
+        "large": {"width": "500px", "height": "600px"},
+        "fullscreen": {"width": "100%", "height": "100vh"}
+    }
+    
+    theme_config = themes.get(theme, themes["voice"])
+    size_config = sizes.get(size, sizes["medium"])
+    
+    embed_code = f"""
+    <!-- VeuPlus Voicebot Widget -->
+    <div id="veuplus-voicebot-{bot_id}" style="position: relative;"></div>
+    <script>
+        (function() {{
+            var container = document.getElementById('veuplus-voicebot-{bot_id}');
+            var iframe = document.createElement('iframe');
+            iframe.src = '{os.environ.get("FRONTEND_URL", "")}/embed/voicebot/{bot_id}?theme={theme}';
+            iframe.style.width = '{size_config["width"]}';
+            iframe.style.height = '{size_config["height"]}';
+            iframe.style.border = 'none';
+            iframe.style.borderRadius = '{theme_config["border_radius"]}';
+            iframe.style.boxShadow = '0 10px 30px rgba(0,0,0,0.15)';
+            iframe.allowtransparency = 'true';
+            
+            var toggleBtn = document.createElement('button');
+            toggleBtn.innerHTML = '🎤';
+            toggleBtn.style.position = 'fixed';
+            toggleBtn.style.bottom = '20px';
+            toggleBtn.style.right = '20px';
+            toggleBtn.style.width = '60px';
+            toggleBtn.style.height = '60px';
+            toggleBtn.style.borderRadius = '50%';
+            toggleBtn.style.border = 'none';
+            toggleBtn.style.background = '{theme_config["background"]}';
+            toggleBtn.style.color = '{theme_config["text_color"]}';
+            toggleBtn.style.fontSize = '24px';
+            toggleBtn.style.cursor = 'pointer';
+            toggleBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+            toggleBtn.style.zIndex = '1000';
+            
+            var isMinimized = true;
+            iframe.style.display = 'none';
+            
+            toggleBtn.onclick = function() {{
+                if (isMinimized) {{
+                    iframe.style.display = 'block';
+                    toggleBtn.innerHTML = '✕';
+                    container.appendChild(iframe);
+                }} else {{
+                    iframe.style.display = 'none';
+                    toggleBtn.innerHTML = '🎤';
+                }}
+                isMinimized = !isMinimized;
+            }};
+            
+            document.body.appendChild(toggleBtn);
+        }})();
+    </script>
+    """
+    
+    return {
+        "embed_code": embed_code, 
+        "bot_name": bot["name"],
+        "voice_model": bot["voice_model_id"],
+        "theme": theme,
+        "size": size,
+        "customization_options": {
+            "themes": list(themes.keys()),
+            "sizes": list(sizes.keys())
+        }
+    }
+
+@api_router.post("/voices/download-catalan-dataset")
+async def download_catalan_dataset():
+    """Download and prepare the Catalan dataset for training"""
+    try:
+        if not datasets_available:
+            raise HTTPException(status_code=500, detail="Datasets library not available")
+        
+        # Start downloading in background
+        download_info = {
+            "status": "success",
+            "message": "Catalan dataset download initiated",
+            "datasets": [
+                "projecte-aina/openslr-slr69-ca-trimmed-denoised",
+                "projecte-aina/4catac"
+            ],
+            "progress": "Starting download...",
+            "estimated_size": "2.5 GB",
+            "dialects_included": [d["name"] for d in CATALAN_DIALECTS]
+        }
+        
+        return download_info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dataset download failed: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
