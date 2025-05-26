@@ -1988,7 +1988,133 @@ function App() {
     );
   };
 
-  // Enhanced Voicebots view
+  // Voice Test Modal for Voicebots
+  const VoiceTestModal = ({ bot, onClose }) => {
+    const [messages, setMessages] = useState([]);
+    const [inputMessage, setInputMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [currentAudio, setCurrentAudio] = useState(null);
+
+    const sendMessage = async () => {
+      if (!inputMessage.trim()) return;
+      
+      const userMessage = { role: 'user', content: inputMessage };
+      setMessages(prev => [...prev, userMessage]);
+      setIsSending(true);
+      
+      try {
+        const response = await axios.post(`${API}/voicebots/chat`, {
+          message: inputMessage,
+          bot_id: bot.id,
+          conversation_history: messages
+        });
+        
+        const botMessage = { 
+          role: 'assistant', 
+          content: response.data.reply,
+          audio_url: response.data.audio_url,
+          audio_id: response.data.audio_id
+        };
+        setMessages(prev => [...prev, botMessage]);
+        
+        // Auto-play the voice response
+        if (response.data.audio_url) {
+          const audio = new Audio(`${BACKEND_URL}${response.data.audio_url}`);
+          setCurrentAudio(audio);
+          audio.play();
+        }
+        
+      } catch (error) {
+        console.error('Error sending voice message:', error);
+        const errorMessage = { 
+          role: 'assistant', 
+          content: 'Error: Unable to get voice response. Please check voicebot configuration.' 
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsSending(false);
+        setInputMessage('');
+      }
+    };
+
+    const playAudio = (audioUrl) => {
+      if (currentAudio) {
+        currentAudio.pause();
+      }
+      const audio = new Audio(`${BACKEND_URL}${audioUrl}`);
+      setCurrentAudio(audio);
+      audio.play();
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-3xl p-6 max-w-2xl w-full mx-4 h-[600px] flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">🎤 Voice Test: {bot.name}</h3>
+              <p className="text-sm text-gray-500">Voice Model: {bot.voice_model_id}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 border border-gray-200 rounded-xl">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                  msg.role === 'user' 
+                    ? 'bg-purple-500 text-white' 
+                    : msg.content.includes('Error:') 
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-800'
+                }`}>
+                  <div>{msg.content}</div>
+                  {msg.audio_url && (
+                    <button
+                      onClick={() => playAudio(msg.audio_url)}
+                      className="mt-2 flex items-center space-x-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <span>🔊</span>
+                      <span className="text-sm">Play Voice</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isSending && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-2xl">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !isSending && sendMessage()}
+              className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="Escriu el teu missatge per rebre resposta de veu..."
+              disabled={isSending}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isSending || !inputMessage.trim()}
+              className="py-3 px-6 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-50"
+            >
+              🎤 {t('send')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const Voicebots = () => (
     <div className="p-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
