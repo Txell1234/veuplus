@@ -921,6 +921,9 @@ async def voice_chat_with_bot(request: ChatRequest):
     try:
         api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
         
+        # Load environment variables
+        openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'asst_PYZokX0P9FNx4PH8X1VK3FWo')
+        
         if openai_client and bot["llm_provider"] == "openai" and api_key:
             # Use OpenAI Assistants API for better responses
             try:
@@ -930,72 +933,58 @@ async def voice_chat_with_bot(request: ChatRequest):
                 else:
                     bot_client = openai_client
                 
-                # Use OpenAI Assistants API if assistant_id is configured
-                assistant_id = bot.get("assistant_id", "asst_PYZokX0P9FNx4PH8X1VK3FWo")  # Your assistant ID
+                # Always use the dedicated VeuPlus Assistant
+                print(f"🤖 Using VeuPlus dedicated OpenAI Assistant: {openai_assistant_id}")
                 
-                if assistant_id:
-                    print(f"🤖 Using OpenAI Assistant: {assistant_id}")
-                    
-                    # Create a thread for this conversation
-                    thread = bot_client.beta.threads.create()
-                    
-                    # Add the user message to the thread
-                    bot_client.beta.threads.messages.create(
+                # Create a thread for this conversation
+                thread = bot_client.beta.threads.create()
+                
+                # Add the user message to the thread
+                bot_client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=request.message
+                )
+                
+                # Run the dedicated VeuPlus assistant
+                run = bot_client.beta.threads.runs.create(
+                    thread_id=thread.id,
+                    assistant_id=openai_assistant_id
+                )
+                
+                # Wait for completion with improved timeout handling
+                import time
+                max_wait = 30  # 30 seconds max wait
+                wait_time = 0
+                
+                while wait_time < max_wait:
+                    run_status = bot_client.beta.threads.runs.retrieve(
                         thread_id=thread.id,
-                        role="user",
-                        content=request.message
+                        run_id=run.id
                     )
                     
-                    # Run the assistant
-                    run = bot_client.beta.threads.runs.create(
-                        thread_id=thread.id,
-                        assistant_id=assistant_id
-                    )
+                    if run_status.status == 'completed':
+                        # Get the response
+                        messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
+                        reply = messages_response.data[0].content[0].text.value
+                        print(f"✅ VeuPlus Assistant response received: {len(reply)} characters")
+                        break
+                    elif run_status.status == 'failed':
+                        reply = "Error: VeuPlus Assistant run failed"
+                        print(f"❌ VeuPlus Assistant run failed")
+                        break
                     
-                    # Wait for completion
-                    import time
-                    max_wait = 30  # 30 seconds max wait
-                    wait_time = 0
-                    
-                    while wait_time < max_wait:
-                        run_status = bot_client.beta.threads.runs.retrieve(
-                            thread_id=thread.id,
-                            run_id=run.id
-                        )
-                        
-                        if run_status.status == 'completed':
-                            # Get the response
-                            messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
-                            reply = messages_response.data[0].content[0].text.value
-                            print(f"✅ OpenAI Assistant response received")
-                            break
-                        elif run_status.status == 'failed':
-                            reply = "Error: Assistant run failed"
-                            print(f"❌ Assistant run failed")
-                            break
-                        
-                        time.sleep(1)
-                        wait_time += 1
-                    
-                    if wait_time >= max_wait:
-                        reply = "Error: Assistant response timeout"
-                        print(f"❌ Assistant timeout after {max_wait}s")
-                        
-                else:
-                    # Fallback to regular ChatCompletion
-                    print(f"🔄 Using regular ChatCompletion")
-                    response = bot_client.chat.completions.create(
-                        model=bot.get("model_name", "gpt-3.5-turbo"),
-                        messages=messages,
-                        temperature=bot.get("temperature", 0.7),
-                        max_tokens=bot.get("max_tokens", 150)
-                    )
-                    reply = response.choices[0].message.content
+                    time.sleep(1)
+                    wait_time += 1
+                
+                if wait_time >= max_wait:
+                    reply = "Error: VeuPlus Assistant response timeout"
+                    print(f"❌ VeuPlus Assistant timeout after {max_wait}s")
                     
             except Exception as e:
                 error_msg = str(e)
-                reply = f"❌ Error d'OpenAI: {error_msg}"
-                print(f"❌ OpenAI error: {error_msg}")
+                reply = f"❌ Error del VeuPlus Assistant: {error_msg}"
+                print(f"❌ VeuPlus Assistant error: {error_msg}")
             
         else:
             # Enhanced mock response for voicebot
