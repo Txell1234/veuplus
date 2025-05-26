@@ -878,6 +878,8 @@ async def voice_chat_with_bot(request: ChatRequest):
                 assistant_id = bot.get("assistant_id", "asst_PYZokX0P9FNx4PH8X1VK3FWo")  # Your assistant ID
                 
                 if assistant_id:
+                    print(f"🤖 Using OpenAI Assistant: {assistant_id}")
+                    
                     # Create a thread for this conversation
                     thread = bot_client.beta.threads.create()
                     
@@ -907,11 +909,13 @@ async def voice_chat_with_bot(request: ChatRequest):
                         
                         if run_status.status == 'completed':
                             # Get the response
-                            messages = bot_client.beta.threads.messages.list(thread_id=thread.id)
-                            reply = messages.data[0].content[0].text.value
+                            messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
+                            reply = messages_response.data[0].content[0].text.value
+                            print(f"✅ OpenAI Assistant response received")
                             break
                         elif run_status.status == 'failed':
                             reply = "Error: Assistant run failed"
+                            print(f"❌ Assistant run failed")
                             break
                         
                         time.sleep(1)
@@ -919,9 +923,11 @@ async def voice_chat_with_bot(request: ChatRequest):
                     
                     if wait_time >= max_wait:
                         reply = "Error: Assistant response timeout"
+                        print(f"❌ Assistant timeout after {max_wait}s")
                         
                 else:
                     # Fallback to regular ChatCompletion
+                    print(f"🔄 Using regular ChatCompletion")
                     response = bot_client.chat.completions.create(
                         model=bot.get("model_name", "gpt-3.5-turbo"),
                         messages=messages,
@@ -932,7 +938,8 @@ async def voice_chat_with_bot(request: ChatRequest):
                     
             except Exception as e:
                 error_msg = str(e)
-                reply = f"❌ Error d'OpenAI Assistant: {error_msg}"
+                reply = f"❌ Error d'OpenAI: {error_msg}"
+                print(f"❌ OpenAI error: {error_msg}")
             
         else:
             # Enhanced mock response for voicebot
