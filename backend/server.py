@@ -520,9 +520,9 @@ async def synthesize_speech(request: SynthesisRequest):
             except Exception as e:
                 print(f"⚠️ espeak-ng failed: {e}")
         
-        # Method 3: Realistic voice synthesis using pyttsx3 or fallback
+        # Method 4: Fallback synthesis if all above methods fail
         if not synthesis_success:
-            print("🎯 Generating realistic voice synthesis")
+            print("🎯 Generating fallback clean voice synthesis")
             
             try:
                 # Try using pyttsx3 for better voice quality
