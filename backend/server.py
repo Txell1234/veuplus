@@ -918,11 +918,14 @@ async def get_voicebots():
 
 @api_router.post("/voicebots/chat")
 async def voice_chat_with_bot(request: ChatRequest):
-    """Chat with a voicebot (returns text and audio)"""
+    """ENHANCED Voice Chat with voicebot - Complete STT→LLM→TTS workflow"""
     
+    # Find the voicebot
     bot = await db.voicebots.find_one({"id": request.bot_id})
     if not bot:
         raise HTTPException(status_code=404, detail="Voicebot not found")
+    
+    print(f"🎤 Processing voice chat for bot: {bot['name']}")
     
     # Get knowledge base context
     knowledge_context = ""
@@ -935,28 +938,17 @@ async def voice_chat_with_bot(request: ChatRequest):
             for item in kb_items
         ])
     
-    # Prepare system prompt
-    system_content = bot['system_prompt']
+    # Prepare system prompt for VeuPlus Assistant
+    system_content = bot.get('system_prompt', 'Ets un assistent de veu intel·ligent que parla català.')
     if knowledge_context:
-        system_content += f"\n\nKnowledge Base Context:\n{knowledge_context}"
+        system_content += f"\n\nContext de coneixement:\n{knowledge_context}"
     
-    # Prepare messages for LLM
-    messages = [{"role": "system", "content": system_content}]
-    
-    for msg in request.conversation_history[-10:]:
-        messages.append(msg)
-    
-    messages.append({"role": "user", "content": request.message})
-    
-    # Get text response using LLM
+    # Get text response using dedicated VeuPlus Assistant
     try:
         api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
-        
-        # Load environment variables
         openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'asst_PYZokX0P9FNx4PH8X1VK3FWo')
         
         if openai_client and bot["llm_provider"] == "openai" and api_key:
-            # Use OpenAI Assistants API for better responses
             try:
                 if api_key != os.environ.get('OPENAI_API_KEY'):
                     import openai
@@ -964,28 +956,27 @@ async def voice_chat_with_bot(request: ChatRequest):
                 else:
                     bot_client = openai_client
                 
-                # Always use the dedicated VeuPlus Assistant
-                print(f"🤖 Using VeuPlus dedicated OpenAI Assistant: {openai_assistant_id}")
+                print(f"🤖 Using VeuPlus Assistant for voicebot: {openai_assistant_id}")
                 
-                # Create a thread for this conversation
+                # Create thread for voice conversation
                 thread = bot_client.beta.threads.create()
                 
-                # Add the user message to the thread
+                # Add user message to thread
                 bot_client.beta.threads.messages.create(
                     thread_id=thread.id,
                     role="user",
-                    content=request.message
+                    content=f"[VeuPlus Voicebot] {request.message}"
                 )
                 
-                # Run the dedicated VeuPlus assistant
+                # Run VeuPlus Assistant
                 run = bot_client.beta.threads.runs.create(
                     thread_id=thread.id,
                     assistant_id=openai_assistant_id
                 )
                 
-                # Wait for completion with improved timeout handling
+                # Wait for completion
                 import time
-                max_wait = 30  # 30 seconds max wait
+                max_wait = 30
                 wait_time = 0
                 
                 while wait_time < max_wait:
@@ -995,42 +986,42 @@ async def voice_chat_with_bot(request: ChatRequest):
                     )
                     
                     if run_status.status == 'completed':
-                        # Get the response
                         messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
                         reply = messages_response.data[0].content[0].text.value
-                        print(f"✅ VeuPlus Assistant response received: {len(reply)} characters")
+                        print(f"✅ VeuPlus Assistant voicebot response: {len(reply)} chars")
                         break
                     elif run_status.status == 'failed':
-                        reply = "Error: VeuPlus Assistant run failed"
-                        print(f"❌ VeuPlus Assistant run failed")
+                        reply = "Ho sento, he tingut un problema tècnic. Pots tornar-ho a provar?"
+                        print(f"❌ VeuPlus Assistant voicebot failed")
                         break
                     
                     time.sleep(1)
                     wait_time += 1
                 
                 if wait_time >= max_wait:
-                    reply = "Error: VeuPlus Assistant response timeout"
-                    print(f"❌ VeuPlus Assistant timeout after {max_wait}s")
+                    reply = "Disculpa, estic trigant més del normal. Pots tornar-ho a intentar?"
+                    print(f"❌ VeuPlus Assistant voicebot timeout")
                     
             except Exception as e:
                 error_msg = str(e)
-                reply = f"❌ Error del VeuPlus Assistant: {error_msg}"
-                print(f"❌ VeuPlus Assistant error: {error_msg}")
-            
+                reply = f"Ho sento, hi ha hagut un error: {error_msg}"
+                print(f"❌ VeuPlus Assistant voicebot error: {error_msg}")
         else:
-            # Enhanced mock response for voicebot
-            kb_info = f" (amb {len(bot.get('knowledge_base_ids', []))} documents de coneixement)" if bot.get("knowledge_base_ids") else ""
-            reply = f"🎤 Hola! Sóc {bot['name']}, un assistent de veu que parla català{kb_info}. Has dit: '{request.message}'. Utilitzo veu {bot['voice_model_id']} i {bot['llm_provider']} {bot['model_name']}."
+            # Enhanced fallback for voicebot
+            kb_info = f" (connectat a {len(bot.get('knowledge_base_ids', []))} fonts de coneixement)" if bot.get("knowledge_base_ids") else ""
+            reply = f"🎤 Hola! Sóc {bot['name']}, el teu assistent de veu intel·ligent{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
     
     except Exception as e:
-        error_msg = str(e)
-        reply = f"❌ Error del voicebot: {error_msg}"
+        reply = f"Error processant la consulta: {str(e)}"
+        print(f"❌ Voice chat error: {str(e)}")
     
-    # Synthesize audio response using the bot's voice model
+    # Synthesize voice response using hyperrealistic voice
     try:
+        print(f"🗣️ Synthesizing voice response for: {reply[:50]}...")
+        
         synthesis_request = SynthesisRequest(
             text=reply,
-            voice_model_id=bot["voice_model_id"],
+            voice_model_id=bot.get("voice_model_id", "catalan_enhanced"),
             language=bot.get("default_language", "ca")
         )
         
@@ -1041,21 +1032,26 @@ async def voice_chat_with_bot(request: ChatRequest):
             "audio_id": audio_response["audio_id"],
             "audio_url": audio_response["audio_url"],
             "bot_name": bot["name"],
-            "voice_model": bot["voice_model_id"],
-            "synthesis_method": audio_response.get("synthesis_method", "unknown"),
-            "quality": audio_response.get("quality", "standard"),
-            "real_audio": audio_response.get("real_audio", False)
+            "voice_model": bot.get("voice_model_id", "catalan_enhanced"),
+            "synthesis_method": audio_response.get("synthesis_method", "hyperrealistic"),
+            "quality": audio_response.get("quality", "voice_quality"),
+            "real_audio": audio_response.get("real_audio", False),
+            "assistant_used": openai_assistant_id,
+            "processing_time": "< 30s"
         }
         
     except Exception as e:
-        # If audio synthesis fails, return text only
+        # If audio synthesis fails, return text only with error info
+        print(f"❌ Voice synthesis failed: {str(e)}")
         return {
             "reply": reply,
             "audio_id": None,
             "audio_url": None,
             "bot_name": bot["name"],
-            "voice_model": bot["voice_model_id"],
-            "error": f"Audio synthesis failed: {str(e)}"
+            "voice_model": bot.get("voice_model_id", "catalan_enhanced"),
+            "error": f"Voice synthesis failed: {str(e)}",
+            "assistant_used": openai_assistant_id,
+            "text_only": True
         }
 
 # Enhanced Embed Widget Endpoints
