@@ -832,25 +832,90 @@ async def voice_chat_with_bot(request: ChatRequest):
     if not bot:
         raise HTTPException(status_code=404, detail="Voicebot not found")
     
-    # Get text response using chatbot logic
-    text_response = await chat_with_bot(request)
+    # Get knowledge base context
+    knowledge_context = ""
+    if bot.get("knowledge_base_ids"):
+        kb_items = await db.knowledge_base.find(
+            {"id": {"$in": bot["knowledge_base_ids"]}}
+        ).to_list(1000)
+        knowledge_context = "\n\n".join([
+            f"Document: {item['name']}\nContent: {item['content'][:500]}..." 
+            for item in kb_items
+        ])
     
-    # Synthesize audio response
-    synthesis_request = SynthesisRequest(
-        text=text_response["reply"],
-        voice_model_id=bot["voice_model_id"],
-        language="ca"
-    )
+    # Prepare system prompt
+    system_content = bot['system_prompt']
+    if knowledge_context:
+        system_content += f"\n\nKnowledge Base Context:\n{knowledge_context}"
     
-    audio_response = await synthesize_speech(synthesis_request)
+    # Prepare messages for LLM
+    messages = [{"role": "system", "content": system_content}]
     
-    return {
-        "reply": text_response["reply"],
-        "audio_id": audio_response["audio_id"],
-        "audio_url": audio_response["audio_url"],
-        "bot_name": bot["name"],
-        "voice_model": bot["voice_model_id"]
-    }
+    for msg in request.conversation_history[-10:]:
+        messages.append(msg)
+    
+    messages.append({"role": "user", "content": request.message})
+    
+    # Get text response using LLM
+    try:
+        api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
+        
+        if openai_client and bot["llm_provider"] == "openai" and api_key:
+            # Use real OpenAI API
+            if api_key != os.environ.get('OPENAI_API_KEY'):
+                import openai
+                bot_client = openai.OpenAI(api_key=api_key)
+            else:
+                bot_client = openai_client
+            
+            response = bot_client.chat.completions.create(
+                model=bot.get("model_name", "gpt-3.5-turbo"),
+                messages=messages,
+                temperature=bot.get("temperature", 0.7),
+                max_tokens=bot.get("max_tokens", 150)
+            )
+            reply = response.choices[0].message.content
+            
+        else:
+            # Enhanced mock response for voicebot
+            kb_info = f" (amb {len(bot.get('knowledge_base_ids', []))} documents de coneixement)" if bot.get("knowledge_base_ids") else ""
+            reply = f"🎤 Hola! Sóc {bot['name']}, un assistent de veu que parla català{kb_info}. Has dit: '{request.message}'. Utilitzo veu {bot['voice_model_id']} i {bot['llm_provider']} {bot['model_name']}."
+    
+    except Exception as e:
+        error_msg = str(e)
+        reply = f"❌ Error del voicebot: {error_msg}"
+    
+    # Synthesize audio response using the bot's voice model
+    try:
+        synthesis_request = SynthesisRequest(
+            text=reply,
+            voice_model_id=bot["voice_model_id"],
+            language=bot.get("default_language", "ca")
+        )
+        
+        audio_response = await synthesize_speech(synthesis_request)
+        
+        return {
+            "reply": reply,
+            "audio_id": audio_response["audio_id"],
+            "audio_url": audio_response["audio_url"],
+            "bot_name": bot["name"],
+            "voice_model": bot["voice_model_id"],
+            "synthesis_method": audio_response.get("synthesis_method", "unknown"),
+            "quality": audio_response.get("quality", "standard"),
+            "real_audio": audio_response.get("real_audio", False)
+        }
+        
+    except Exception as e:
+        # If audio synthesis fails, return text only
+        return {
+            "reply": reply,
+            "audio_id": None,
+            "audio_url": None,
+            "bot_name": bot["name"],
+            "voice_model": bot["voice_model_id"],
+            "error": f"Audio synthesis failed: {str(e)}"
+        }
 
 # Enhanced Embed Widget Endpoints
 @api_router.get("/embed/chatbot/{bot_id}")
