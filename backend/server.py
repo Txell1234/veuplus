@@ -825,6 +825,10 @@ async def get_knowledge_base():
     """Get all knowledge base items"""
     try:
         items = await db.knowledge_base.find({}).to_list(1000)
+        # Convert ObjectId to string for JSON serialization
+        for item in items:
+            if '_id' in item:
+                del item['_id']  # Remove MongoDB ObjectId
         return {"items": items}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching knowledge base: {str(e)}")
