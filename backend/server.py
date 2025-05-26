@@ -480,115 +480,80 @@ async def synthesize_speech(request: SynthesisRequest):
             except Exception as e:
                 print(f"⚠️ espeak-ng failed: {e}")
         
-        # Method 3: Advanced TTS with real voice-like synthesis (NO BEEPS!)
+        # Method 3: Realistic voice synthesis using pyttsx3 or fallback
         if not synthesis_success:
-            print("🎯 Generating advanced voice-like synthesis (NO BEEPS)")
-            import wave
-            import numpy as np
+            print("🎯 Generating realistic voice synthesis")
             
-            # Create actual speech-like waveform based on text
-            sample_rate = 22050
-            text_length = len(request.text)
-            duration = max(text_length * 0.08, 1.5)  # 80ms per character minimum
-            
-            # Generate natural speech patterns (NO SIMPLE SINE WAVES!)
-            t = np.linspace(0, duration, int(sample_rate * duration))
-            
-            # Create multiple voice sources to simulate real speech
-            audio_components = []
-            
-            # Fundamental frequency (voice pitch) - varies naturally
-            f0_base = 140  # Base frequency for male voice
-            f0_variation = np.sin(2 * np.pi * 2 * t) * 20  # Natural pitch variation
-            f0 = f0_base + f0_variation
-            
-            # Generate formants (vocal tract resonances) - this makes it sound like speech
-            formants = [
-                {"freq": 700, "bandwidth": 80, "amplitude": 0.8},   # F1 - vowel height
-                {"freq": 1220, "bandwidth": 90, "amplitude": 0.6},  # F2 - vowel backness  
-                {"freq": 2600, "bandwidth": 120, "amplitude": 0.4}, # F3 - additional resonance
-                {"freq": 3400, "bandwidth": 150, "amplitude": 0.2}  # F4 - voice quality
-            ]
-            
-            # Create speech-like audio using formant synthesis
-            voice_signal = np.zeros_like(t)
-            
-            # Generate voiced segments (simulate vowels and voiced consonants)
-            for formant in formants:
-                # Modulated formant frequency for natural speech variation
-                formant_freq = formant["freq"] + np.sin(2 * np.pi * 0.5 * t) * 30
+            try:
+                # Try using pyttsx3 for better voice quality
+                import pyttsx3
+                engine = pyttsx3.init()
                 
-                # Generate formant with bandwidth (more realistic than pure sine)
-                formant_signal = np.exp(-np.abs(t - duration/2) * formant["bandwidth"]) * np.sin(2 * np.pi * formant_freq * t)
-                voice_signal += formant_signal * formant["amplitude"]
-            
-            # Add voicing source (glottal pulses)
-            glottal_pulses = np.zeros_like(t)
-            pulse_rate = f0_base / sample_rate
-            for i in range(int(duration * f0_base)):
-                pulse_time = i / f0_base
-                if pulse_time < duration:
-                    pulse_idx = int(pulse_time * sample_rate)
-                    if pulse_idx < len(glottal_pulses):
-                        # Create realistic glottal pulse shape
-                        pulse_width = int(0.001 * sample_rate)  # 1ms pulse
-                        pulse_start = max(0, pulse_idx - pulse_width//2)
-                        pulse_end = min(len(glottal_pulses), pulse_idx + pulse_width//2)
-                        glottal_pulses[pulse_start:pulse_end] += np.hanning(pulse_end - pulse_start)
-            
-            # Combine voicing source with vocal tract filter
-            voice_signal = np.convolve(glottal_pulses, voice_signal[:1000], mode='same')[:len(t)]
-            
-            # Add natural speech envelope (attack, sustain, decay)
-            envelope = np.ones_like(t)
-            attack_time = int(0.1 * sample_rate)  # 100ms attack
-            decay_time = int(0.1 * sample_rate)   # 100ms decay
-            
-            # Attack envelope
-            envelope[:attack_time] = np.linspace(0, 1, attack_time)
-            # Decay envelope  
-            envelope[-decay_time:] = np.linspace(1, 0, decay_time)
-            
-            # Apply envelope
-            voice_signal *= envelope
-            
-            # Add realistic variations for different phonemes
-            word_count = len(request.text.split())
-            for i in range(word_count):
-                word_start = int((i / word_count) * len(voice_signal))
-                word_end = int(((i + 1) / word_count) * len(voice_signal))
+                # Configure voice for Catalan/Spanish
+                voices = engine.getProperty('voices')
+                if voices:
+                    # Try to find a Spanish or similar voice
+                    for voice in voices:
+                        if 'spanish' in voice.name.lower() or 'es' in voice.id.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
                 
-                # Vary amplitude and frequency for each word
-                word_amplitude = 0.8 + np.random.uniform(-0.2, 0.2)
-                voice_signal[word_start:word_end] *= word_amplitude
+                # Set voice properties
+                engine.setProperty('rate', 150)  # Speaking rate
+                engine.setProperty('volume', 0.8)  # Volume level
                 
-                # Add slight pauses between words
-                if i < word_count - 1:
-                    pause_start = word_end - int(0.02 * sample_rate)
-                    pause_end = word_end + int(0.02 * sample_rate)
-                    if pause_end < len(voice_signal):
-                        voice_signal[pause_start:pause_end] *= 0.3
+                # Save to file
+                engine.save_to_file(request.text, str(audio_file))
+                engine.runAndWait()
+                
+                if audio_file.exists() and audio_file.stat().st_size > 1000:
+                    synthesis_method = "pyttsx3_tts"
+                    quality = "system_voice_quality"
+                    synthesis_success = True
+                    print("✅ pyttsx3 synthesis successful")
+                
+            except Exception as e:
+                print(f"⚠️ pyttsx3 failed: {e}")
             
-            # Add very subtle background noise for realism (much less than before)
-            noise = np.random.normal(0, 0.005, len(voice_signal))  # Very quiet noise
-            voice_signal += noise
-            
-            # Normalize and convert to 16-bit
-            voice_signal = voice_signal / np.max(np.abs(voice_signal))  # Normalize
-            voice_signal = np.clip(voice_signal, -0.95, 0.95)  # Prevent clipping
-            audio_data = (voice_signal * 32767 * 0.7).astype(np.int16)  # 70% volume
-            
-            # Save as WAV
-            with wave.open(str(audio_file), 'w') as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)
-                wav_file.setframerate(sample_rate)
-                wav_file.writeframes(audio_data.tobytes())
-            
-            synthesis_method = "advanced_voice_synthesis"
-            quality = "voice_like_natural"
-            synthesis_success = True
-            print(f"✅ Advanced voice synthesis completed - NO BEEPS!")
+            # If pyttsx3 fails, use simple clean tone instead of complex formants
+            if not synthesis_success:
+                print("🎯 Generating simple clean voice tone")
+                import wave
+                import numpy as np
+                
+                sample_rate = 22050
+                duration = max(len(request.text) * 0.1, 1.5)
+                t = np.linspace(0, duration, int(sample_rate * duration))
+                
+                # Simple, clean voice-like tone (no complex formants that sound broken)
+                frequency = 200  # Low, comfortable frequency
+                
+                # Create a simple sine wave with natural envelope
+                audio_signal = 0.3 * np.sin(2 * np.pi * frequency * t)
+                
+                # Add natural fade in/out to avoid clicks
+                fade_samples = int(0.05 * sample_rate)  # 50ms fade
+                audio_signal[:fade_samples] *= np.linspace(0, 1, fade_samples)
+                audio_signal[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+                
+                # Add slight frequency modulation for more natural sound
+                modulation = 1 + 0.05 * np.sin(2 * np.pi * 2 * t)  # 2 Hz modulation
+                audio_signal *= modulation
+                
+                # Convert to 16-bit integer
+                audio_data = (audio_signal * 32767 * 0.7).astype(np.int16)
+                
+                # Save as WAV
+                with wave.open(str(audio_file), 'w') as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(2)
+                    wav_file.setframerate(sample_rate)
+                    wav_file.writeframes(audio_data.tobytes())
+                
+                synthesis_method = "clean_voice_tone"
+                quality = "simple_clean_audio"
+                synthesis_success = True
+                print("✅ Clean voice tone synthesis completed")
         
         # Verify file quality
         if not audio_file.exists() or audio_file.stat().st_size < 1000:
