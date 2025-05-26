@@ -1617,6 +1617,7 @@ async def download_catalan_dataset():
 # Include the router in the main app
 app.include_router(api_router)
 
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
