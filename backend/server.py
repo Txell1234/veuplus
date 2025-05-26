@@ -1054,9 +1054,212 @@ async def voice_chat_with_bot(request: ChatRequest):
             "text_only": True
         }
 
-# Enhanced Embed Widget Endpoints
-@api_router.get("/embed/chatbot/{bot_id}")
-async def get_chatbot_embed_code(bot_id: str, theme: str = "modern", size: str = "medium"):
+# VeuPlus Embed System - Export embeddable widgets
+@api_router.get("/embed/veuplus/{bot_id}")
+async def get_veuplus_embed_code(bot_id: str, theme: str = "veuplus", size: str = "medium", widget_type: str = "chat"):
+    """Generate embeddable VeuPlus widget code for external websites"""
+    
+    # Verify bot exists
+    if widget_type == "voicebot":
+        bot = await db.voicebots.find_one({"id": bot_id})
+        bot_type = "voicebot"
+    else:
+        bot = await db.chatbots.find_one({"id": bot_id})
+        bot_type = "chatbot"
+        
+    if not bot:
+        raise HTTPException(status_code=404, detail=f"{widget_type} not found")
+    
+    # VeuPlus embed themes
+    themes = {
+        "veuplus": {
+            "primary_color": "#4f46e5",  # VeuPlus purple
+            "secondary_color": "#7c3aed",
+            "accent_color": "#c41e3a",   # Catalan red
+            "background": "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c41e3a 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "16px",
+            "shadow": "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+        },
+        "catalan": {
+            "primary_color": "#c41e3a",
+            "secondary_color": "#fcdd09",
+            "background": "linear-gradient(135deg, #c41e3a 0%, #fcdd09 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "12px",
+            "shadow": "0 15px 20px -5px rgba(196, 30, 58, 0.3)"
+        },
+        "modern": {
+            "primary_color": "#1f2937",
+            "secondary_color": "#374151",
+            "background": "linear-gradient(135deg, #1f2937 0%, #374151 100%)",
+            "text_color": "#ffffff",
+            "border_radius": "20px",
+            "shadow": "0 25px 30px -10px rgba(0, 0, 0, 0.2)"
+        },
+        "minimal": {
+            "primary_color": "#ffffff",
+            "secondary_color": "#f3f4f6",
+            "background": "#ffffff",
+            "text_color": "#1f2937",
+            "border_radius": "8px",
+            "shadow": "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
+        }
+    }
+    
+    # Widget sizes
+    sizes = {
+        "small": {"width": "320px", "height": "450px"},
+        "medium": {"width": "400px", "height": "550px"},
+        "large": {"width": "500px", "height": "650px"},
+        "fullscreen": {"width": "100%", "height": "100vh"}
+    }
+    
+    theme_config = themes.get(theme, themes["veuplus"])
+    size_config = sizes.get(size, sizes["medium"])
+    
+    # Generate VeuPlus embed code
+    embed_code = f"""
+<!-- VeuPlus AI Widget - {bot['name']} -->
+<div id="veuplus-widget-{bot_id}" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000;"></div>
+<script>
+(function() {{
+    // VeuPlus Widget Configuration
+    const VEUPLUS_CONFIG = {{
+        botId: '{bot_id}',
+        botType: '{bot_type}',
+        botName: '{bot['name']}',
+        theme: '{theme}',
+        size: '{size}',
+        apiUrl: '{os.environ.get("FRONTEND_URL", "")}/api',
+        widgetUrl: '{os.environ.get("FRONTEND_URL", "")}/embed/{bot_type}/{bot_id}'
+    }};
+    
+    // Create widget container
+    const container = document.getElementById('veuplus-widget-{bot_id}');
+    
+    // Widget iframe
+    const iframe = document.createElement('iframe');
+    iframe.src = VEUPLUS_CONFIG.widgetUrl + '?theme={theme}&embedded=true';
+    iframe.style.cssText = `
+        width: {size_config["width"]};
+        height: {size_config["height"]};
+        border: none;
+        border-radius: {theme_config["border_radius"]};
+        box-shadow: {theme_config["shadow"]};
+        display: none;
+        background: {theme_config["background"]};
+    `;
+    iframe.allowTransparency = 'true';
+    iframe.allow = 'microphone';
+    
+    // Floating action button
+    const toggleBtn = document.createElement('button');
+    toggleBtn.innerHTML = '{bot_type == "voicebot" and "🎤" or "💬"}';
+    toggleBtn.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: none;
+        background: {theme_config["background"]};
+        color: {theme_config["text_color"]};
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: {theme_config["shadow"]};
+        z-index: 10001;
+        transition: all 0.3s ease;
+        animation: veuplus-pulse 2s infinite;
+    `;
+    
+    // Add pulsing animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes veuplus-pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.05); }}
+            100% {{ transform: scale(1); }}
+        }}
+        #veuplus-widget-{bot_id} .veuplus-btn:hover {{
+            transform: scale(1.1);
+        }}
+    `;
+    document.head.appendChild(style);
+    
+    // Widget state
+    let isOpen = false;
+    
+    // Toggle functionality
+    toggleBtn.onclick = function() {{
+        if (isOpen) {{
+            iframe.style.display = 'none';
+            toggleBtn.innerHTML = '{bot_type == "voicebot" and "🎤" or "💬"}';
+            toggleBtn.style.background = '{theme_config["background"]}';
+        }} else {{
+            iframe.style.display = 'block';
+            toggleBtn.innerHTML = '✕';
+            toggleBtn.style.background = '#ef4444';
+            
+            // Load iframe content if not loaded
+            if (!iframe.contentWindow.location.href.includes('embed')) {{
+                iframe.src = VEUPLUS_CONFIG.widgetUrl + '?theme={theme}&embedded=true&t=' + Date.now();
+            }}
+        }}
+        isOpen = !isOpen;
+    }};
+    
+    // Add elements to page
+    document.body.appendChild(toggleBtn);
+    container.appendChild(iframe);
+    
+    // VeuPlus branding (optional, can be removed)
+    const branding = document.createElement('div');
+    branding.innerHTML = '<small style="color: #6b7280; position: fixed; bottom: 5px; right: 70px; font-size: 10px; z-index: 9999;">Powered by VeuPlus</small>';
+    document.body.appendChild(branding);
+    
+    console.log('VeuPlus AI Widget loaded successfully for {bot["name"]}');
+}})();
+</script>
+"""
+
+    return {
+        "embed_code": embed_code,
+        "bot_id": bot_id,
+        "bot_name": bot["name"],
+        "bot_type": bot_type,
+        "theme": theme,
+        "size": size,
+        "iframe_url": f'{os.environ.get("FRONTEND_URL", "")}/embed/{bot_type}/{bot_id}?theme={theme}',
+        "script_url": f'{os.environ.get("FRONTEND_URL", "")}/embed/veuplus/{bot_id}?theme={theme}&size={size}&widget_type={widget_type}',
+        "customization_options": {
+            "themes": list(themes.keys()),
+            "sizes": list(sizes.keys()),
+            "widget_types": ["chatbot", "voicebot"]
+        },
+        "integration_examples": {
+            "html": f'<script src="{os.environ.get("FRONTEND_URL", "")}/embed/veuplus/{bot_id}.js" data-theme="{theme}" data-size="{size}"></script>',
+            "iframe": f'<iframe src="{os.environ.get("FRONTEND_URL", "")}/embed/{bot_type}/{bot_id}?theme={theme}" width="{size_config["width"]}" height="{size_config["height"]}" frameborder="0"></iframe>',
+            "react": f"""
+import React from 'react';
+
+const VeuPlusWidget = () => {{
+  return (
+    <iframe 
+      src="{os.environ.get("FRONTEND_URL", "")}/embed/{bot_type}/{bot_id}?theme={theme}"
+      width="{size_config["width"]}" 
+      height="{size_config["height"]}"
+      frameBorder="0"
+      allow="microphone"
+    />
+  );
+}};
+
+export default VeuPlusWidget;
+"""
+        }
+    }
     """Get enhanced embed code for chatbot"""
     bot = await db.chatbots.find_one({"id": bot_id})
     if not bot:
