@@ -599,6 +599,10 @@ async def get_voicebots():
     """Get all voicebots"""
     try:
         bots = await db.voicebots.find({}).to_list(1000)
+        # Convert ObjectId to string for JSON serialization
+        for bot in bots:
+            if '_id' in bot:
+                del bot['_id']  # Remove MongoDB ObjectId
         return {"bots": bots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching voicebots: {str(e)}")
