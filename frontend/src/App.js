@@ -2082,6 +2082,7 @@ function App() {
       {/* Modals */}
       {showVoiceTrainingModal && <VoiceTrainingModal />}
       {showChatbotModal && <ChatbotModal />}
+      {showVoicebotModal && <VoicebotModal />}
       {showTestChatModal && selectedChatbot && (
         <ChatTestModal 
           bot={selectedChatbot} 
