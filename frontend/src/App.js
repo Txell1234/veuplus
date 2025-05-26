@@ -1765,8 +1765,228 @@ function App() {
     );
   };
 
-  // Enhanced Voicebots view
-  const Voicebots = () => (
+  // Enhanced Voicebot Modal
+  const VoicebotModal = () => {
+    const [formData, setFormData] = useState({
+      name: '',
+      voice_model_id: '',
+      llm_provider: 'openai',
+      model_name: 'gpt-3.5-turbo',
+      temperature: 0.7,
+      system_prompt: 'Ets un assistent de veu que parla català. Respon sempre en català de manera útil i amigable.',
+      api_key: '',
+      knowledge_base_ids: []
+    });
+    const [isCreating, setIsCreating] = useState(false);
+    const [showKnowledgeSelection, setShowKnowledgeSelection] = useState(false);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setIsCreating(true);
+      
+      try {
+        await axios.post(`${API}/voicebots`, formData);
+        await loadData();
+        setShowVoicebotModal(false);
+        setFormData({
+          name: '',
+          voice_model_id: '',
+          llm_provider: 'openai',
+          model_name: 'gpt-3.5-turbo',
+          temperature: 0.7,
+          system_prompt: 'Ets un assistent de veu que parla català. Respon sempre en català de manera útil i amigable.',
+          api_key: '',
+          knowledge_base_ids: []
+        });
+      } catch (error) {
+        console.error('Error creating voicebot:', error);
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    return (
+      <>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                {t('createNewVoicebot')}
+              </h2>
+              <button
+                onClick={() => setShowVoicebotModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('voicebotName')}
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('selectVoiceModel')}
+                </label>
+                <select
+                  value={formData.voice_model_id}
+                  onChange={(e) => setFormData({...formData, voice_model_id: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select a voice model...</option>
+                  {voices.filter(v => v.status === 'ready').map(voice => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} - {voice.dialect}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('llmProvider')}
+                  </label>
+                  <select
+                    value={formData.llm_provider}
+                    onChange={(e) => setFormData({...formData, llm_provider: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="claude">Claude</option>
+                    <option value="gemini">Gemini</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('modelName')}
+                  </label>
+                  <select
+                    value={formData.model_name}
+                    onChange={(e) => setFormData({...formData, model_name: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    {formData.llm_provider === 'openai' && (
+                      <>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-4-turbo-preview">GPT-4 Turbo</option>
+                      </>
+                    )}
+                    {formData.llm_provider === 'claude' && (
+                      <>
+                        <option value="claude-3-haiku">Claude 3 Haiku</option>
+                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                        <option value="claude-3-opus">Claude 3 Opus</option>
+                      </>
+                    )}
+                    {formData.llm_provider === 'gemini' && (
+                      <>
+                        <option value="gemini-pro">Gemini Pro</option>
+                        <option value="gemini-pro-vision">Gemini Pro Vision</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('temperature')} ({formData.temperature})
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={formData.temperature}
+                  onChange={(e) => setFormData({...formData, temperature: parseFloat(e.target.value)})}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('systemPrompt')}
+                </label>
+                <textarea
+                  value={formData.system_prompt}
+                  onChange={(e) => setFormData({...formData, system_prompt: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('apiKey')} (Optional - uses global key if empty)
+                </label>
+                <input
+                  type="password"
+                  value={formData.api_key}
+                  onChange={(e) => setFormData({...formData, api_key: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="Leave empty to use global API key"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('knowledgeBaseSources')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowKnowledgeSelection(true)}
+                  className="w-full p-3 border border-gray-300 rounded-xl text-left hover:bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  {formData.knowledge_base_ids.length > 0 
+                    ? `${formData.knowledge_base_ids.length} ${t('knowledgeSelected')}`
+                    : t('selectKnowledgeSources')
+                  }
+                </button>
+              </div>
+              
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setShowVoicebotModal(false)}
+                  className="flex-1 py-3 px-6 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl hover:from-purple-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50"
+                >
+                  {isCreating ? t('creating') : t('createVoicebotBtn')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <KnowledgeSelectionModal
+          isOpen={showKnowledgeSelection}
+          onClose={() => setShowKnowledgeSelection(false)}
+          onSelect={(ids) => setFormData({...formData, knowledge_base_ids: ids})}
+          selectedIds={formData.knowledge_base_ids}
+        />
+      </>
+    );
+  };
     <div className="p-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
