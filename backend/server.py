@@ -751,21 +751,77 @@ async def chat_with_bot(request: ChatRequest):
     
     try:
         if openai_client and bot["llm_provider"] == "openai" and api_key:
-            # Use real OpenAI API
-            if api_key != os.environ.get('OPENAI_API_KEY'):
-                import openai
-                bot_client = openai.OpenAI(api_key=api_key)
-            else:
-                bot_client = openai_client
-            
-            # Updated response with enhanced chatbot configuration - use new OpenAI client
-            response = bot_client.chat.completions.create(
-                model=bot.get("model_name", "gpt-4"),
-                messages=messages,
-                temperature=bot.get("temperature", 0.7),
-                max_tokens=bot.get("max_tokens", 150)
-            )
-            reply = response.choices[0].message.content
+            # Use OpenAI Assistants API for better responses
+            try:
+                if api_key != os.environ.get('OPENAI_API_KEY'):
+                    import openai
+                    bot_client = openai.OpenAI(api_key=api_key)
+                else:
+                    bot_client = openai_client
+                
+                # Use OpenAI Assistants API if assistant_id is configured
+                assistant_id = bot.get("assistant_id", "asst_PYZokX0P9FNx4PH8X1VK3FWo")  # Your assistant ID
+                
+                if assistant_id:
+                    print(f"🤖 Using OpenAI Assistant for chatbot: {assistant_id}")
+                    
+                    # Create a thread for this conversation
+                    thread = bot_client.beta.threads.create()
+                    
+                    # Add the user message to the thread
+                    bot_client.beta.threads.messages.create(
+                        thread_id=thread.id,
+                        role="user",
+                        content=request.message
+                    )
+                    
+                    # Run the assistant
+                    run = bot_client.beta.threads.runs.create(
+                        thread_id=thread.id,
+                        assistant_id=assistant_id
+                    )
+                    
+                    # Wait for completion
+                    import time
+                    max_wait = 30
+                    wait_time = 0
+                    
+                    while wait_time < max_wait:
+                        run_status = bot_client.beta.threads.runs.retrieve(
+                            thread_id=thread.id,
+                            run_id=run.id
+                        )
+                        
+                        if run_status.status == 'completed':
+                            messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
+                            reply = messages_response.data[0].content[0].text.value
+                            print(f"✅ OpenAI Assistant chatbot response received")
+                            break
+                        elif run_status.status == 'failed':
+                            reply = "Error: Assistant run failed"
+                            print(f"❌ Assistant chatbot run failed")
+                            break
+                        
+                        time.sleep(1)
+                        wait_time += 1
+                    
+                    if wait_time >= max_wait:
+                        reply = "Error: Assistant response timeout"
+                        print(f"❌ Assistant chatbot timeout")
+                else:
+                    # Fallback to regular ChatCompletion
+                    print(f"🔄 Using regular ChatCompletion for chatbot")
+                    response = bot_client.chat.completions.create(
+                        model=bot.get("model_name", "gpt-3.5-turbo"),
+                        messages=messages,
+                        temperature=bot.get("temperature", 0.7),
+                        max_tokens=bot.get("max_tokens", 150)
+                    )
+                    reply = response.choices[0].message.content
+            except Exception as e:
+                error_msg = str(e)
+                reply = f"❌ Error: {error_msg}"
+                print(f"❌ OpenAI API error: {error_msg}")
             
             return {
                 "reply": reply,
