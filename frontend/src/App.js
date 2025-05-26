@@ -2218,6 +2218,15 @@ function App() {
           }} 
         />
       )}
+      {showTestVoiceModal && selectedVoicebot && (
+        <VoiceTestModal 
+          bot={selectedVoicebot} 
+          onClose={() => {
+            setShowTestVoiceModal(false);
+            setSelectedVoicebot(null);
+          }} 
+        />
+      )}
       <DeleteModal />
     </div>
   );
