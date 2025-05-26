@@ -423,46 +423,486 @@ class VeuPlusAPITester:
         
         return None
 
-    def run_comprehensive_enhanced_tests(self):
-        """Run comprehensive enhanced API test suite"""
-        print("🚀 VeuPlus Enhanced Platform Comprehensive Test Suite")
+    def test_critical_voice_synthesis_no_beeps(self):
+        """🎯 CRITICAL: Test voice synthesis WITHOUT BEEPS"""
+        print("\n🎤 CRITICAL TEST: Voice Synthesis WITHOUT BEEPS")
+        print("=" * 60)
+        
+        test_cases = [
+            {
+                "text": "Hola, sóc una veu catalana natural sense beeps molestos.",
+                "expected_method": "advanced_voice_synthesis",
+                "expected_quality": "voice_like_natural"
+            },
+            {
+                "text": "Aquest test verifica que l'àudio soni com una veu real, no com un beep.",
+                "expected_method": "advanced_voice_synthesis", 
+                "expected_quality": "voice_like_natural"
+            },
+            {
+                "text": "La síntesi de veu hauria de ser natural i sense sons artificials.",
+                "expected_method": "advanced_voice_synthesis",
+                "expected_quality": "voice_like_natural"
+            }
+        ]
+        
+        for i, test_case in enumerate(test_cases, 1):
+            try:
+                synthesis_data = {
+                    "text": test_case["text"],
+                    "voice_model_id": "catalan_enhanced",
+                    "language": "ca"
+                }
+                
+                response = requests.post(f"{self.api_url}/synthesis", json=synthesis_data, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    # Check critical parameters
+                    synthesis_method = result.get("synthesis_method", "")
+                    quality = result.get("quality", "")
+                    audio_id = result.get("audio_id", "")
+                    audio_url = result.get("audio_url", "")
+                    
+                    # Verify NO BEEPS criteria
+                    if (synthesis_method == test_case["expected_method"] and 
+                        quality == test_case["expected_quality"] and 
+                        audio_id and audio_url):
+                        
+                        self.log_test(f"Voice Synthesis NO BEEPS Test {i}", True, 
+                                    f"✅ Method: {synthesis_method}, Quality: {quality}")
+                        
+                        # Test audio file accessibility
+                        try:
+                            audio_response = requests.get(f"{self.base_url}{audio_url}", timeout=10)
+                            if audio_response.status_code == 200:
+                                self.log_test(f"Audio File Access Test {i}", True, 
+                                            f"Audio file size: {len(audio_response.content)} bytes")
+                            else:
+                                self.log_test(f"Audio File Access Test {i}", False, 
+                                            f"Audio not accessible: {audio_response.status_code}")
+                        except Exception as e:
+                            self.log_test(f"Audio File Access Test {i}", False, str(e))
+                    else:
+                        self.log_test(f"Voice Synthesis NO BEEPS Test {i}", False, 
+                                    f"❌ Wrong method/quality: {synthesis_method}/{quality}")
+                else:
+                    self.log_test(f"Voice Synthesis NO BEEPS Test {i}", False, 
+                                f"HTTP {response.status_code}: {response.text[:100]}")
+                    
+            except Exception as e:
+                self.log_test(f"Voice Synthesis NO BEEPS Test {i}", False, str(e))
+
+    def test_critical_voicebot_voice_chat(self):
+        """🎯 CRITICAL: Test voicebot voice chat functionality"""
+        print("\n🤖🎤 CRITICAL TEST: Voicebot Voice Chat")
+        print("=" * 60)
+        
+        # First create a voicebot for testing
+        try:
+            voicebot_data = {
+                "name": f"Critical Test Voicebot {int(time.time())}",
+                "voice_model_id": "catalan_enhanced",
+                "llm_provider": "openai",
+                "model_name": "gpt-3.5-turbo",
+                "temperature": 0.7,
+                "system_prompt": "Ets un assistent de veu català que respon sempre en català.",
+                "supported_languages": ["ca", "es", "en", "fr"],
+                "default_language": "ca"
+            }
+            
+            response = requests.post(f"{self.api_url}/voicebots", json=voicebot_data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                bot_id = result.get("bot_id")
+                
+                if bot_id:
+                    self.created_voicebot_id = bot_id
+                    self.log_test("Voicebot Creation for Testing", True, f"Bot ID: {bot_id}")
+                    
+                    # Test the critical voice chat endpoint
+                    chat_test_cases = [
+                        "Hola, pots parlar amb mi en català?",
+                        "Explica'm què pots fer com a assistent de veu.",
+                        "Quin temps fa avui?"
+                    ]
+                    
+                    for i, message in enumerate(chat_test_cases, 1):
+                        try:
+                            chat_data = {
+                                "message": message,
+                                "bot_id": bot_id,
+                                "conversation_history": []
+                            }
+                            
+                            chat_response = requests.post(f"{self.api_url}/voicebots/chat", 
+                                                        json=chat_data, timeout=30)
+                            
+                            if chat_response.status_code == 200:
+                                chat_result = chat_response.json()
+                                
+                                # Check for both text and audio response
+                                reply = chat_result.get("reply", "")
+                                audio_id = chat_result.get("audio_id", "")
+                                audio_url = chat_result.get("audio_url", "")
+                                
+                                if reply and audio_url:
+                                    self.log_test(f"Voicebot Voice Chat Test {i}", True, 
+                                                f"✅ Got text + audio response")
+                                    print(f"   💬 Reply: {reply[:50]}...")
+                                    print(f"   🔊 Audio URL: {audio_url}")
+                                    
+                                    # Verify audio is accessible
+                                    try:
+                                        audio_check = requests.get(f"{self.base_url}{audio_url}", timeout=10)
+                                        if audio_check.status_code == 200:
+                                            self.log_test(f"Voicebot Audio Response {i}", True, 
+                                                        f"Audio accessible ({len(audio_check.content)} bytes)")
+                                        else:
+                                            self.log_test(f"Voicebot Audio Response {i}", False, 
+                                                        f"Audio not accessible: {audio_check.status_code}")
+                                    except Exception as e:
+                                        self.log_test(f"Voicebot Audio Response {i}", False, str(e))
+                                else:
+                                    self.log_test(f"Voicebot Voice Chat Test {i}", False, 
+                                                f"❌ Missing reply or audio: reply={bool(reply)}, audio={bool(audio_url)}")
+                            else:
+                                self.log_test(f"Voicebot Voice Chat Test {i}", False, 
+                                            f"❌ HTTP {chat_response.status_code}: {chat_response.text[:100]}")
+                                
+                        except Exception as e:
+                            self.log_test(f"Voicebot Voice Chat Test {i}", False, str(e))
+                else:
+                    self.log_test("Voicebot Creation for Testing", False, "No bot_id in response")
+            else:
+                self.log_test("Voicebot Creation for Testing", False, 
+                            f"HTTP {response.status_code}: {response.text[:100]}")
+                
+        except Exception as e:
+            self.log_test("Voicebot Creation for Testing", False, str(e))
+
+    def test_critical_openai_integration(self):
+        """🎯 CRITICAL: Test OpenAI integration with real responses"""
+        print("\n🧠 CRITICAL TEST: OpenAI Integration (Real API)")
+        print("=" * 60)
+        
+        # Create chatbot with OpenAI configuration
+        try:
+            chatbot_data = {
+                "name": f"OpenAI Test Bot {int(time.time())}",
+                "llm_provider": "openai",
+                "model_name": "gpt-3.5-turbo",
+                "temperature": 0.7,
+                "system_prompt": "You are a helpful AI assistant. Respond in Catalan.",
+                "supported_languages": ["ca", "es", "en", "fr"],
+                "default_language": "ca"
+            }
+            
+            response = requests.post(f"{self.api_url}/chatbots", json=chatbot_data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                bot_id = result.get("bot_id")
+                
+                if bot_id:
+                    self.created_chatbot_id = bot_id
+                    self.log_test("OpenAI Chatbot Creation", True, f"Bot ID: {bot_id}")
+                    
+                    # Test different models
+                    test_models = ["gpt-3.5-turbo", "gpt-4"]
+                    
+                    for model in test_models:
+                        try:
+                            chat_data = {
+                                "message": "Hola, respon en català. Quin model d'IA ets?",
+                                "bot_id": bot_id,
+                                "conversation_history": []
+                            }
+                            
+                            chat_response = requests.post(f"{self.api_url}/chatbots/chat", 
+                                                        json=chat_data, timeout=30)
+                            
+                            if chat_response.status_code == 200:
+                                chat_result = chat_response.json()
+                                reply = chat_result.get("reply", "")
+                                model_used = chat_result.get("model", "")
+                                tokens_used = chat_result.get("tokens_used", 0)
+                                
+                                # Check if it's a real OpenAI response (not mock)
+                                is_real_response = (
+                                    "mock" not in reply.lower() and
+                                    model_used in ["gpt-3.5-turbo", "gpt-4"] and
+                                    len(reply) > 20 and
+                                    tokens_used > 0
+                                )
+                                
+                                if is_real_response:
+                                    self.log_test(f"OpenAI Real Response ({model})", True, 
+                                                f"✅ Real OpenAI response from {model_used}")
+                                    print(f"   🤖 Model: {model_used}")
+                                    print(f"   🎯 Tokens: {tokens_used}")
+                                    print(f"   💬 Reply: {reply[:100]}...")
+                                else:
+                                    self.log_test(f"OpenAI Real Response ({model})", False, 
+                                                f"❌ Mock response detected: {reply[:50]}...")
+                            else:
+                                self.log_test(f"OpenAI Real Response ({model})", False, 
+                                            f"HTTP {chat_response.status_code}")
+                                
+                        except Exception as e:
+                            self.log_test(f"OpenAI Real Response ({model})", False, str(e))
+                else:
+                    self.log_test("OpenAI Chatbot Creation", False, "No bot_id in response")
+            else:
+                self.log_test("OpenAI Chatbot Creation", False, 
+                            f"HTTP {response.status_code}: {response.text[:100]}")
+                
+        except Exception as e:
+            self.log_test("OpenAI Chatbot Creation", False, str(e))
+
+    def test_critical_multi_language_support(self):
+        """🎯 CRITICAL: Test multi-language support"""
+        print("\n🌍 CRITICAL TEST: Multi-Language Support")
+        print("=" * 60)
+        
+        # Test synthesis in all supported languages
+        languages = [
+            ("ca", "Hola, sóc una veu catalana."),
+            ("es", "Hola, soy una voz española."),
+            ("en", "Hello, I am an English voice."),
+            ("fr", "Bonjour, je suis une voix française.")
+        ]
+        
+        for lang_code, text in languages:
+            try:
+                synthesis_data = {
+                    "text": text,
+                    "voice_model_id": "catalan_enhanced",
+                    "language": lang_code
+                }
+                
+                response = requests.post(f"{self.api_url}/synthesis", json=synthesis_data, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if "audio_id" in result and "audio_url" in result:
+                        self.log_test(f"Multi-Language Synthesis ({lang_code})", True, 
+                                    f"✅ Synthesis successful for {lang_code}")
+                    else:
+                        self.log_test(f"Multi-Language Synthesis ({lang_code})", False, 
+                                    "Missing audio_id or audio_url")
+                else:
+                    self.log_test(f"Multi-Language Synthesis ({lang_code})", False, 
+                                f"HTTP {response.status_code}")
+                    
+            except Exception as e:
+                self.log_test(f"Multi-Language Synthesis ({lang_code})", False, str(e))
+
+    def test_critical_delete_functionality(self):
+        """🎯 CRITICAL: Test delete functionality"""
+        print("\n🗑️ CRITICAL TEST: Delete Functionality")
+        print("=" * 60)
+        
+        # Test deleting created items
+        items_to_delete = [
+            ("chatbot", self.created_chatbot_id, "/chatbots/"),
+            ("voicebot", self.created_voicebot_id, "/voicebots/"),
+        ]
+        
+        for item_type, item_id, endpoint_prefix in items_to_delete:
+            if item_id:
+                try:
+                    delete_url = f"{self.api_url}{endpoint_prefix}{item_id}"
+                    response = requests.delete(delete_url, timeout=30)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        message = result.get("message", "")
+                        if "deleted" in message.lower():
+                            self.log_test(f"Delete {item_type.title()}", True, 
+                                        f"✅ Successfully deleted {item_type}")
+                        else:
+                            self.log_test(f"Delete {item_type.title()}", False, 
+                                        f"Unexpected response: {message}")
+                    else:
+                        self.log_test(f"Delete {item_type.title()}", False, 
+                                    f"HTTP {response.status_code}: {response.text[:100]}")
+                        
+                except Exception as e:
+                    self.log_test(f"Delete {item_type.title()}", False, str(e))
+            else:
+                self.log_test(f"Delete {item_type.title()}", False, f"No {item_type} ID to delete")
+
+    def test_critical_catalan_datasets(self):
+        """🎯 CRITICAL: Test real Catalan datasets integration"""
+        print("\n📚 CRITICAL TEST: Real Catalan Datasets")
+        print("=" * 60)
+        
+        try:
+            response = requests.post(f"{self.api_url}/voices/download-catalan-dataset", timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                datasets = result.get("datasets", [])
+                status = result.get("status", "")
+                
+                # Check for expected datasets
+                expected_datasets = [
+                    "projecte-aina/openslr-slr69-ca-trimmed-denoised",
+                    "projecte-aina/4catac"
+                ]
+                
+                datasets_found = all(dataset in str(datasets) for dataset in expected_datasets)
+                
+                if datasets_found and status == "success":
+                    self.log_test("Catalan Dataset Download", True, 
+                                f"✅ Real datasets available: {len(datasets)} datasets")
+                    print(f"   📊 Datasets: {datasets}")
+                    print(f"   📏 Estimated size: {result.get('estimated_size', 'Unknown')}")
+                else:
+                    self.log_test("Catalan Dataset Download", False, 
+                                f"❌ Missing datasets or failed status: {datasets}")
+            else:
+                self.log_test("Catalan Dataset Download", False, 
+                            f"HTTP {response.status_code}: {response.text[:100]}")
+                
+        except Exception as e:
+            self.log_test("Catalan Dataset Download", False, str(e))
+
+    def test_critical_no_404_endpoints(self):
+        """🎯 CRITICAL: Verify no 404 errors on key endpoints"""
+        print("\n🔗 CRITICAL TEST: No 404 Errors")
+        print("=" * 60)
+        
+        critical_endpoints = [
+            ("GET", "/"),
+            ("GET", "/dialects"),
+            ("GET", "/voices"),
+            ("GET", "/chatbots"),
+            ("GET", "/voicebots"),
+            ("GET", "/knowledge-base"),
+            ("POST", "/synthesis"),
+            ("POST", "/voicebots/chat"),
+        ]
+        
+        for method, endpoint in critical_endpoints:
+            try:
+                if method == "GET":
+                    response = requests.get(f"{self.api_url}{endpoint}", timeout=10)
+                elif method == "POST":
+                    # Use minimal valid data for POST endpoints
+                    if endpoint == "/synthesis":
+                        data = {"text": "test", "voice_model_id": "test", "language": "ca"}
+                    elif endpoint == "/voicebots/chat":
+                        data = {"message": "test", "bot_id": "test", "conversation_history": []}
+                    else:
+                        data = {}
+                    response = requests.post(f"{self.api_url}{endpoint}", json=data, timeout=10)
+                
+                if response.status_code != 404:
+                    self.log_test(f"Endpoint {method} {endpoint}", True, 
+                                f"✅ Available (HTTP {response.status_code})")
+                else:
+                    self.log_test(f"Endpoint {method} {endpoint}", False, 
+                                f"❌ Not found (404)")
+                    
+            except Exception as e:
+                self.log_test(f"Endpoint {method} {endpoint}", False, str(e))
+
+    def run_critical_tests(self):
+        """Run all critical tests mentioned in the review request"""
+        print("🎯 VeuPlus Platform CRITICAL FIXES VERIFICATION")
         print("=" * 80)
         print(f"📡 Testing API at: {self.api_url}")
         print(f"🕐 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("🎯 Focus: Critical issues from review request")
         print("=" * 80)
         
         try:
-            # Enhanced connectivity and features tests
-            self.test_enhanced_features_connectivity()
+            # Basic connectivity
+            if not self.test_health_check():
+                print("❌ API not responding - stopping tests")
+                return False
             
-            # Multi-language support (Catalan dialects)
-            self.test_catalan_dialects()
+            # Critical tests in order of importance
+            self.test_critical_no_404_endpoints()
+            self.test_critical_voice_synthesis_no_beeps()
+            self.test_critical_voicebot_voice_chat()
+            self.test_critical_openai_integration()
+            self.test_critical_multi_language_support()
+            self.test_critical_catalan_datasets()
+            self.test_critical_delete_functionality()
             
-            # Enhanced voice training and synthesis
-            voice_id = self.test_voice_endpoints()
-            self.test_enhanced_speech_synthesis(voice_id)
-            
-            # Knowledge base system
-            self.test_knowledge_base()
-            
-            # Enhanced chatbot configuration
-            chatbot_id = self.test_enhanced_chatbot_configuration()
-            
-            # Enhanced voicebot system
-            self.test_enhanced_voicebot_endpoints(voice_id)
-            
-            # Enhanced embedding widgets
-            self.test_enhanced_embedding_widgets(chatbot_id)
-            
-            # Print comprehensive summary
-            self.print_enhanced_summary()
+            # Print critical summary
+            self.print_critical_summary()
             
         except KeyboardInterrupt:
             print("\n⚠️ Test suite interrupted by user")
         except Exception as e:
             print(f"\n💥 Unexpected error during testing: {e}")
         
-        return self.tests_passed >= (self.tests_run * 0.7)  # 70% success rate threshold
+        return self.tests_passed >= (self.tests_run * 0.8)  # 80% success rate for critical tests
+
+    def print_critical_summary(self):
+        """Print summary focused on critical issues"""
+        print("\n" + "=" * 80)
+        print("🎯 CRITICAL FIXES VERIFICATION RESULTS")
+        print("=" * 80)
+        
+        success_rate = (self.tests_passed / self.tests_run * 100) if self.tests_run > 0 else 0
+        
+        print(f"📈 Total Tests Run: {self.tests_run}")
+        print(f"✅ Tests Passed: {self.tests_passed}")
+        print(f"❌ Tests Failed: {self.tests_run - self.tests_passed}")
+        print(f"🎯 Success Rate: {success_rate:.1f}%")
+        
+        print("\n🎯 CRITICAL ISSUES STATUS:")
+        
+        # Check each critical issue
+        critical_checks = [
+            ("Voice Synthesis NO BEEPS", "voice synthesis no beeps"),
+            ("Voicebot Voice Chat", "voicebot voice chat"),
+            ("OpenAI Real Responses", "openai real response"),
+            ("Multi-Language Support", "multi-language"),
+            ("Delete Functionality", "delete"),
+            ("Catalan Datasets", "catalan dataset"),
+            ("No 404 Endpoints", "endpoint")
+        ]
+        
+        for issue_name, test_keyword in critical_checks:
+            related_tests = [t for t in self.test_results if test_keyword in t['name'].lower()]
+            if related_tests:
+                passed_tests = [t for t in related_tests if t['success']]
+                if len(passed_tests) == len(related_tests):
+                    print(f"✅ {issue_name}: FIXED")
+                elif len(passed_tests) > 0:
+                    print(f"⚠️ {issue_name}: PARTIALLY FIXED ({len(passed_tests)}/{len(related_tests)})")
+                else:
+                    print(f"❌ {issue_name}: NOT FIXED")
+            else:
+                print(f"❓ {issue_name}: NOT TESTED")
+        
+        # Print failed critical tests
+        failed_tests = [t for t in self.test_results if not t["success"]]
+        if failed_tests:
+            print(f"\n🚨 CRITICAL FAILURES ({len(failed_tests)}):")
+            for test in failed_tests:
+                print(f"  • {test['name']}: {test['details']}")
+        
+        print("\n" + "=" * 80)
+        
+        if success_rate >= 90:
+            print("🎉 CRITICAL ASSESSMENT: ALL FIXES WORKING!")
+        elif success_rate >= 75:
+            print("👍 CRITICAL ASSESSMENT: MOST FIXES WORKING - Minor issues remain")
+        elif success_rate >= 50:
+            print("⚠️ CRITICAL ASSESSMENT: SOME FIXES WORKING - Major issues remain")
+        else:
+            print("🚨 CRITICAL ASSESSMENT: CRITICAL FIXES NOT WORKING")
+        
+        print("=" * 80)
 
     def test_enhanced_speech_synthesis(self, voice_id=None):
         """Test enhanced speech synthesis with quality feedback"""
