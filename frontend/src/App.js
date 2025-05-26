@@ -1987,6 +1987,9 @@ function App() {
       </>
     );
   };
+
+  // Enhanced Voicebots view
+  const Voicebots = () => (
     <div className="p-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
