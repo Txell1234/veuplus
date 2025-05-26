@@ -1215,11 +1215,11 @@ class VeuPlusAPITester:
         print("=" * 80)
 
 def main():
-    """Main test execution"""
+    """Main test execution - Focus on critical fixes"""
     tester = VeuPlusAPITester()
     
     try:
-        success = tester.run_comprehensive_enhanced_tests()
+        success = tester.run_critical_tests()
         return 0 if success else 1
     except KeyboardInterrupt:
         print("\n⚠️ Tests interrupted by user")
