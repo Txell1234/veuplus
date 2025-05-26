@@ -785,6 +785,10 @@ async def get_voices():
     """Get all trained voices"""
     try:
         voices = await db.voice_models.find({}).to_list(1000)
+        # Convert ObjectId to string for JSON serialization
+        for voice in voices:
+            if '_id' in voice:
+                del voice['_id']  # Remove MongoDB ObjectId
         return {"voices": voices}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching voices: {str(e)}")
