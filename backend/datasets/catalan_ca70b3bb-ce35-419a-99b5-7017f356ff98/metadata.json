@@ -1,0 +1,16 @@
+{
+  "train": [
+    {
+      "audio_path": "sample_audio_1.wav",
+      "text": "Bon dia, com estàs avui?",
+      "speaker_id": "catalan_speaker_1",
+      "dialect": "central"
+    },
+    {
+      "audio_path": "sample_audio_2.wav",
+      "text": "Aquest és un exemple de síntesi de veu catalana.",
+      "speaker_id": "catalan_speaker_1",
+      "dialect": "central"
+    }
+  ]
+}
