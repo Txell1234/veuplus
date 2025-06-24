@@ -117,9 +117,11 @@ const VoiceTrainingAdvanced = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API}/training/start`, trainingForm);
+      console.log('Starting training with data:', trainingForm);
+      const response = await axios.post(`${API}/api/training/start`, trainingForm);
       const jobId = response.data.job_id;
       
+      console.log('Training started with job ID:', jobId);
       setCurrentJob(jobId);
       connectWebSocket(jobId);
       
