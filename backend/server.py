@@ -28,8 +28,22 @@ client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
 # Initialize FastAPI
-app = FastAPI(title="VeuPlus API", version="2.0.0")
+app = FastAPI(
+    title="VeuPlus Developer Platform", 
+    version="2.0.0",
+    description="Professional voice synthesis and AI chatbot platform for developers",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 api_router = APIRouter(prefix="/api")
+
+# Import and include developer dashboard
+try:
+    from developer_dashboard import dev_router
+    app.include_router(dev_router)
+    print("✅ Developer Dashboard enabled")
+except ImportError:
+    print("⚠️ Developer Dashboard not available")
 
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
