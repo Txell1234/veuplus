@@ -164,9 +164,9 @@ async def get_usage_analytics(period: str = "7d"):
             {"$group": {
                 "_id": None,
                 "total_requests": {"$sum": 1},
-                "tts_requests": {"$sum": {"$cond": [{"$regex": ["$endpoint", "synthesis"]}, 1, 0]}},
-                "stt_requests": {"$sum": {"$cond": [{"$regex": ["$endpoint", "transcribe"]}, 1, 0]}},
-                "chat_requests": {"$sum": {"$cond": [{"$regex": ["$endpoint", "chat"]}, 1, 0]}},
+                "tts_requests": {"$sum": {"$cond": [{"$regexMatch": {"input": "$endpoint", "regex": "synthesis"}}, 1, 0]}},
+                "stt_requests": {"$sum": {"$cond": [{"$regexMatch": {"input": "$endpoint", "regex": "transcribe"}}, 1, 0]}},
+                "chat_requests": {"$sum": {"$cond": [{"$regexMatch": {"input": "$endpoint", "regex": "chat"}}, 1, 0]}},
                 "data_processed_mb": {"$sum": "$data_size_mb"}
             }}
         ]
