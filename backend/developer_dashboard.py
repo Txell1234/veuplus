@@ -28,6 +28,10 @@ class APIKeyRequest(BaseModel):
     description: Optional[str] = ""
     permissions: List[str] = ["tts", "stt", "chat"]
 
+class ProjectRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
 class APIKeyResponse(BaseModel):
     api_key: str
     name: str
