@@ -432,11 +432,14 @@ function App() {
   const [showTestChatModal, setShowTestChatModal] = useState(false);
   const [showTestVoiceModal, setShowTestVoiceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showVoiceSelectionModal, setShowVoiceSelectionModal] = useState(false);
 
   // Selected items for modals
   const [selectedChatbot, setSelectedChatbot] = useState(null);
   const [selectedVoicebot, setSelectedVoicebot] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [selectedVoice, setSelectedVoice] = useState(null);
+  const [voiceSelectionCallback, setVoiceSelectionCallback] = useState(null);
 
   // Get translation function
   const t = (key) => translations[currentLanguage][key] || translations.en[key] || key;
