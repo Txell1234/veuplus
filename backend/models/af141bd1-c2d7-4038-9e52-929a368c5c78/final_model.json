@@ -1,0 +1,11 @@
+{
+  "job_id": "af141bd1-c2d7-4038-9e52-929a368c5c78",
+  "model_type": "XTTS_v2",
+  "language": "ca",
+  "dialect": "central",
+  "training_epochs": 25,
+  "final_loss": 0.22696196263618756,
+  "created_at": "2025-06-24T23:22:32.409685",
+  "model_version": "1.0.0",
+  "sample_rate": 22050
+}
