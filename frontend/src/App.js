@@ -2196,6 +2196,7 @@ function App() {
       case 'chatbots': return <Chatbots />;
       case 'voicebots': return <Voicebots />;
       case 'knowledge': return <KnowledgeBase />;
+      case 'developer': return <DeveloperDashboard />;
       default: return <Dashboard />;
     }
   };
