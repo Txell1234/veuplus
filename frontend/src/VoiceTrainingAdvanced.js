@@ -156,74 +156,119 @@ const VoiceTrainingAdvanced = () => {
     }
   };
 
-  const renderLanguageSelection = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-gray-900">Select Language & Dialect</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.entries(supportedLanguages).map(([langCode, langData]) => (
-          <div
-            key={langCode}
-            onClick={() => setTrainingForm(prev => ({ ...prev, language: langCode }))}
-            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-              trainingForm.language === langCode
-                ? 'border-purple-500 bg-purple-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="text-lg font-semibold mb-2">
-              {langData.name}
-            </div>
-            <div className="text-sm text-gray-600">
-              {langData.dialects?.length || 0} dialects supported
-            </div>
-            {langCode === 'ca' && (
-              <div className="mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                Hyperrealistic Quality
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+  const renderLanguageSelection = () => {
+    // Fallback language data if API fails
+    const fallbackLanguages = {
+      "ca": {
+        "name": "Catalan Dataset (OpenSLR)",
+        "dialects": ["central", "balearic", "valencian", "andorran", "rossellones", "alguerese"],
+        "sample_rate": 22050,
+        "lang_code": "ca"
+      },
+      "es": {
+        "name": "Spanish Dataset",
+        "dialects": ["castilian", "andalusian", "mexican", "argentinian"],
+        "sample_rate": 16000,
+        "lang_code": "es"
+      },
+      "fr": {
+        "name": "French Dataset", 
+        "dialects": ["metropolitan", "canadian", "belgian"],
+        "sample_rate": 16000,
+        "lang_code": "fr"
+      },
+      "en": {
+        "name": "English Dataset",
+        "dialects": ["american", "british", "australian", "canadian"],
+        "sample_rate": 16000,
+        "lang_code": "en"
+      },
+      "pt": {
+        "name": "Portuguese Dataset",
+        "dialects": ["brazilian", "european"],
+        "sample_rate": 16000,
+        "lang_code": "pt"
+      }
+    };
 
-      {trainingForm.language && supportedLanguages[trainingForm.language]?.dialects && (
-        <div className="mt-6">
-          <h4 className="text-lg font-medium mb-3">Select Dialect</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {supportedLanguages[trainingForm.language].dialects.map((dialect) => (
-              <button
-                key={dialect}
-                onClick={() => setTrainingForm(prev => ({ ...prev, dialect }))}
-                className={`p-3 text-sm rounded-lg border transition-all ${
-                  trainingForm.dialect === dialect
-                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+    const languages = Object.keys(supportedLanguages).length > 0 ? supportedLanguages : fallbackLanguages;
+    
+    return (
+      <div className="space-y-6">
+        <h3 className="text-xl font-semibold text-gray-900">Select Language & Dialect</h3>
+        
+        {Object.keys(languages).length === 0 ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading supported languages...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(languages).map(([langCode, langData]) => (
+              <div
+                key={langCode}
+                onClick={() => setTrainingForm(prev => ({ ...prev, language: langCode }))}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  trainingForm.language === langCode
+                    ? 'border-purple-500 bg-purple-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {dialect.charAt(0).toUpperCase() + dialect.slice(1)}
-              </button>
+                <div className="text-lg font-semibold mb-2">
+                  {langData.name}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {langData.dialects?.length || 0} dialects supported
+                </div>
+                {langCode === 'ca' && (
+                  <div className="mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                    Hyperrealistic Quality
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex justify-between mt-8">
-        <button
-          onClick={() => setActiveStep(1)}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-        >
-          Back
-        </button>
-        <button
-          onClick={() => setActiveStep(3)}
-          disabled={!trainingForm.language}
-          className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50"
-        >
-          Next: Configuration
-        </button>
+        {trainingForm.language && languages[trainingForm.language]?.dialects && (
+          <div className="mt-6">
+            <h4 className="text-lg font-medium mb-3">Select Dialect</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {languages[trainingForm.language].dialects.map((dialect) => (
+                <button
+                  key={dialect}
+                  onClick={() => setTrainingForm(prev => ({ ...prev, dialect }))}
+                  className={`p-3 text-sm rounded-lg border transition-all ${
+                    trainingForm.dialect === dialect
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {dialect.charAt(0).toUpperCase() + dialect.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between mt-8">
+          <button
+            onClick={() => setActiveStep(1)}
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => setActiveStep(3)}
+            disabled={!trainingForm.language}
+            className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50"
+          >
+            Next: Configuration
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderTrainingConfiguration = () => (
     <div className="space-y-6">
