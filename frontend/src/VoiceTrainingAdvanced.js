@@ -43,17 +43,36 @@ const VoiceTrainingAdvanced = () => {
 
   const loadInitialData = async () => {
     try {
+      setIsLoading(true);
+      
+      // Load all dashboard data in parallel
       const [sessionsRes, statusRes, languagesRes] = await Promise.all([
-        axios.get(`${API}/training/jobs`),
-        axios.get(`${API}/training/system/status`),
-        axios.get(`${API}/training/languages`)
+        axios.get(`${API}/api/training/jobs`),
+        axios.get(`${API}/api/training/system/status`),
+        axios.get(`${API}/api/training/languages`)
       ]);
-
+      
       setTrainingSessions(sessionsRes.data.jobs || []);
       setSystemStatus(statusRes.data || {});
       setSupportedLanguages(languagesRes.data.supported_languages || {});
+      
+      console.log('Loaded data:', {
+        sessions: sessionsRes.data.jobs?.length || 0,
+        status: statusRes.data,
+        languages: Object.keys(languagesRes.data.supported_languages || {})
+      });
+      
     } catch (error) {
       console.error('Error loading training data:', error);
+      // Try alternative endpoint structure
+      try {
+        const languagesRes = await axios.get(`${API}/api/training/languages`);
+        setSupportedLanguages(languagesRes.data.supported_languages || {});
+      } catch (altError) {
+        console.error('Alternative load failed:', altError);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
