@@ -2282,6 +2282,14 @@ function App() {
           }} 
         />
       )}
+      {showVoiceSelectionModal && (
+        <VoiceSelectionModal
+          isOpen={showVoiceSelectionModal}
+          onClose={() => setShowVoiceSelectionModal(false)}
+          onSelect={handleVoiceSelection}
+          selectedVoiceId={selectedVoice?.id}
+        />
+      )}
       <DeleteModal />
     </div>
   );
