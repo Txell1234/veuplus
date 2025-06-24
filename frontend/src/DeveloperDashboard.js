@@ -415,7 +415,7 @@ const AnalyticsTab = ({ usageStats }) => (
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Avg Response Time</span>
-            <span className="font-semibold">< 2s</span>
+            <span className="font-semibold">{"< 2s"}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Success Rate</span>
