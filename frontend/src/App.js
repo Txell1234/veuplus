@@ -505,6 +505,21 @@ function App() {
     setShowDeleteModal(true);
   };
 
+  // Voice selection helper
+  const openVoiceSelection = (callback, currentVoiceId = null) => {
+    setSelectedVoice(currentVoiceId);
+    setVoiceSelectionCallback(() => callback);
+    setShowVoiceSelectionModal(true);
+  };
+
+  const handleVoiceSelection = (voice) => {
+    setSelectedVoice(voice);
+    if (voiceSelectionCallback) {
+      voiceSelectionCallback(voice);
+    }
+    setShowVoiceSelectionModal(false);
+  };
+
   // Download Catalan Dataset
   const downloadCatalanDataset = async () => {
     try {
