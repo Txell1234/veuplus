@@ -36,6 +36,11 @@ const VoiceTrainingAdvanced = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Debug log to check if supportedLanguages is loading
+    console.log('Supported Languages:', supportedLanguages);
+  }, [supportedLanguages]);
+
   const loadInitialData = async () => {
     try {
       const [sessionsRes, statusRes, languagesRes] = await Promise.all([
