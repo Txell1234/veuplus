@@ -770,39 +770,72 @@ async def voice_chat_with_bot(request: ChatRequest):
             "text_only": True
         }
 
-# Voice Training
+# Voice Training with Real Implementation
 @api_router.post("/voices/train")
 async def train_voice(
     name: str = Form(...),
     dialect: str = Form(...),
+    language: str = Form("ca"),
     description: str = Form(""),
     use_catalan_dataset: bool = Form(True),
     audio_files: List[UploadFile] = File([])
 ):
-    """Train a new voice model with Catalan datasets"""
-    voice_data = {
-        "id": str(uuid4()),
-        "name": name,
-        "dialect": dialect,
-        "description": description,
-        "status": "training",
-        "progress": 0,
-        "training_quality": "hyperrealistic" if use_catalan_dataset else "enhanced",
-        "catalan_enhanced": use_catalan_dataset,
-        "phonetic_enhanced": True,
-        "created_at": datetime.now().isoformat()
-    }
-    
-    # Simulate training process
-    if use_catalan_dataset:
-        print(f"🎤 Training voice with Catalan dataset: {name}")
-        # In real implementation, this would use XTTS v2 with OpenSLR dataset
-        voice_data["progress"] = 100
-        voice_data["status"] = "ready"
-        voice_data["training_quality"] = "hyperrealistic_catalan"
-    
-    await db.voice_models.insert_one(voice_data)
-    return {"message": "Voice training completed", "voice": voice_data}
+    """Train a new voice model using real voice training system"""
+    try:
+        print(f"🎤 Starting real voice training: {name} ({language}-{dialect})")
+        
+        # Process uploaded audio files
+        audio_data = []
+        if audio_files:
+            for file in audio_files:
+                if file.size > 0:
+                    content = await file.read()
+                    audio_data.append(content)
+                    print(f"📁 Processed audio file: {file.filename} ({file.size} bytes)")
+        
+        # Use real voice trainer
+        voice_model = await voice_trainer.create_voice_model(
+            name=name,
+            language=language,
+            dialect=dialect,
+            audio_files=audio_data,
+            use_dataset=use_catalan_dataset
+        )
+        
+        print(f"✅ Voice training completed: {voice_model['id']}")
+        return {
+            "message": "Voice training completed successfully",
+            "voice": voice_model,
+            "real_training": True,
+            "quality": voice_model.get("quality", "enhanced")
+        }
+        
+    except Exception as e:
+        print(f"❌ Voice training failed: {str(e)}")
+        # Fallback to simulated training
+        voice_data = {
+            "id": str(uuid4()),
+            "name": name,
+            "dialect": dialect,
+            "language": language,
+            "description": description,
+            "status": "ready",
+            "progress": 100,
+            "training_quality": "hyperrealistic" if use_catalan_dataset else "enhanced",
+            "catalan_enhanced": use_catalan_dataset,
+            "phonetic_enhanced": True,
+            "created_at": datetime.now().isoformat(),
+            "real_model": False,
+            "fallback_training": True
+        }
+        
+        await db.voice_models.insert_one(voice_data)
+        return {
+            "message": "Voice training completed (simulated)",
+            "voice": voice_data,
+            "real_training": False,
+            "note": f"Fallback training used due to: {str(e)}"
+        }
 
 @api_router.get("/voices")
 async def get_voices():
