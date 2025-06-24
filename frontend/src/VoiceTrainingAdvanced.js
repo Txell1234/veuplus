@@ -81,7 +81,10 @@ const VoiceTrainingAdvanced = () => {
       wsRef.current.close();
     }
 
-    const wsUrl = `wss://${window.location.host}/api/training/ws/${jobId}`;
+    // Use the same domain but switch to WebSocket protocol
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/training/ws/${jobId}`;
+    console.log('Connecting to WebSocket:', wsUrl);
+    
     wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onmessage = (event) => {
@@ -90,6 +93,7 @@ const VoiceTrainingAdvanced = () => {
         ...prev,
         [jobId]: data
       }));
+      console.log('WebSocket progress:', data);
     };
 
     wsRef.current.onerror = (error) => {
@@ -98,6 +102,10 @@ const VoiceTrainingAdvanced = () => {
 
     wsRef.current.onclose = () => {
       console.log('WebSocket connection closed');
+    };
+
+    wsRef.current.onopen = () => {
+      console.log('WebSocket connection opened');
     };
   };
 
