@@ -652,6 +652,7 @@ function App() {
             { id: 'chatbots', label: t('chatbots'), icon: '💬', gradient: 'from-orange-500 to-orange-600' },
             { id: 'voicebots', label: t('voicebots'), icon: '🤖', gradient: 'from-pink-500 to-pink-600' },
             { id: 'knowledge', label: t('knowledgeBase'), icon: '📚', gradient: 'from-indigo-500 to-indigo-600' },
+            { id: 'developer', label: 'Developer Dashboard', icon: '👨‍💻', gradient: 'from-gray-500 to-gray-600' },
           ].map(item => (
             <button
               key={item.id}
