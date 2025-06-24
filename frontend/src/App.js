@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import DeveloperDashboard from './DeveloperDashboard';
 import VoiceTrainingAdvanced from './VoiceTrainingAdvanced';
+import VoiceSelectionModal from './VoiceSelectionModal';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
