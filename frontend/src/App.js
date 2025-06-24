@@ -1863,19 +1863,47 @@ function App() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('selectVoiceModel')}
                 </label>
-                <select
-                  value={formData.voice_model_id}
-                  onChange={(e) => setFormData({...formData, voice_model_id: e.target.value})}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select a voice model...</option>
-                  {voices.filter(v => v.status === 'ready').map(voice => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name} - {voice.dialect}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => openVoiceSelection((voice) => setFormData({...formData, voice_model_id: voice.id}), formData.voice_model_id)}
+                    className="w-full p-4 border border-gray-300 rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left transition-colors"
+                  >
+                    {formData.voice_model_id ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {voices.find(v => v.id === formData.voice_model_id)?.name || 'Selected Voice'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {voices.find(v => v.id === formData.voice_model_id)?.language?.toUpperCase()} - {voices.find(v => v.id === formData.voice_model_id)?.dialect}
+                          </div>
+                        </div>
+                        <div className="text-purple-500">✓</div>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">
+                        Choose a voice model for your voicebot...
+                      </div>
+                    )}
+                  </button>
+                  
+                  {voices.filter(v => v.status === 'ready').length === 0 && (
+                    <div className="text-center py-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                      <div className="text-yellow-600 mb-2">⚠️ No trained voices available</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowVoicebotModal(false);
+                          setCurrentView('training-advanced');
+                        }}
+                        className="text-purple-600 hover:text-purple-700 underline text-sm"
+                      >
+                        Train your first voice model
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
