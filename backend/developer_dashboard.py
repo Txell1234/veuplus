@@ -226,16 +226,15 @@ async def get_performance_metrics():
 # Project Management
 @dev_router.post("/projects")
 async def create_project(
-    name: str,
-    description: str = "",
+    project: ProjectRequest,
     api_key: dict = Depends(verify_api_key)
 ):
     """Create a new developer project"""
     try:
         project_data = {
             "id": str(uuid.uuid4()),
-            "name": name,
-            "description": description,
+            "name": project.name,
+            "description": project.description,
             "api_keys": [],
             "created_at": datetime.utcnow().isoformat(),
             "status": "active",
