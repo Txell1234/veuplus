@@ -352,8 +352,8 @@ async def get_billing_usage(api_key: dict = Depends(verify_api_key)):
             {"$group": {
                 "_id": None,
                 "total_requests": {"$sum": 1},
-                "tts_minutes": {"$sum": {"$cond": [{"$regex": ["$endpoint", "synthesis"]}, 0.1, 0]}},
-                "training_sessions": {"$sum": {"$cond": [{"$regex": ["$endpoint", "train"]}, 1, 0]}},
+                "tts_minutes": {"$sum": {"$cond": [{"$regexMatch": {"input": "$endpoint", "regex": "synthesis"}}, 0.1, 0]}},
+                "training_sessions": {"$sum": {"$cond": [{"$regexMatch": {"input": "$endpoint", "regex": "train"}}, 1, 0]}},
                 "data_processed_gb": {"$sum": {"$divide": ["$data_size_mb", 1024]}}
             }}
         ]
