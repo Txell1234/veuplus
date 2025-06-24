@@ -2196,6 +2196,8 @@ function App() {
       case 'dashboard': return <Dashboard />;
       case 'voices': return <VoiceTraining />;
       case 'synthesis': return <SpeechSynthesis />;
+      case 'training': return <VoiceTraining />;
+      case 'training-advanced': return <VoiceTrainingAdvanced />;
       case 'chatbots': return <Chatbots />;
       case 'voicebots': return <Voicebots />;
       case 'knowledge': return <KnowledgeBase />;
