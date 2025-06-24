@@ -218,9 +218,8 @@ class XTTSTrainingTester:
         print(f"\n🔍 Testing WebSocket Progress Updates for job {job_id}...")
         
         # Convert HTTP to WebSocket protocol
-        ws_url = f"wss://{self.base_url.split('://')[-1]}/api/training/ws/{job_id}"
-        ws_url = ws_url.replace('https://', '')
-        ws_url = f"wss://{ws_url}"
+        domain = self.base_url.split('://')[-1]
+        ws_url = f"wss://{domain}/api/training/ws/{job_id}"
         
         print(f"Connecting to WebSocket: {ws_url}")
         
