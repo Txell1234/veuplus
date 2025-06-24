@@ -48,6 +48,14 @@ try:
 except ImportError as e:
     print(f"⚠️ Developer Dashboard not available: {str(e)}")
 
+# Import and include voice training pipeline
+try:
+    from voice_training_pipeline import training_router
+    app.include_router(training_router)
+    print("✅ XTTS v2 Voice Training Pipeline enabled")
+except ImportError as e:
+    print(f"⚠️ Voice Training Pipeline not available: {str(e)}")
+
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
 STATIC_DIR = Path("backend/static")
