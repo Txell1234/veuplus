@@ -141,7 +141,7 @@ const VoiceTrainingAdvanced = () => {
 
   const cancelTraining = async (jobId) => {
     try {
-      await axios.delete(`${API}/training/jobs/${jobId}`);
+      await axios.delete(`${API}/api/training/jobs/${jobId}`);
       loadInitialData();
       
       if (currentJob === jobId) {
