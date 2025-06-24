@@ -39,11 +39,14 @@ api_router = APIRouter(prefix="/api")
 
 # Import and include developer dashboard
 try:
+    # Try with absolute import
+    import sys
+    sys.path.append('/app/backend')
     from developer_dashboard import dev_router
     app.include_router(dev_router)
     print("✅ Developer Dashboard enabled")
-except ImportError:
-    print("⚠️ Developer Dashboard not available")
+except ImportError as e:
+    print(f"⚠️ Developer Dashboard not available: {str(e)}")
 
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
