@@ -2255,7 +2255,45 @@ function App() {
       case 'chatbots': return <Chatbots />;
       case 'voicebots': return <Voicebots />;
       case 'knowledge': return <KnowledgeBase />;
-      case 'call-center': return <CallCenterDashboard />;
+  const CallCenterView = () => {
+    const [callCenters, setCallCenters] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      loadCallCenters();
+    }, []);
+
+    const loadCallCenters = async () => {
+      try {
+        const response = await axios.get(`${API}/call-center/`);
+        setCallCenters(response.data.call_centers || []);
+      } catch (error) {
+        console.error('Error loading call centers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleCreateCenter = () => {
+      setShowCallCenterCreation(true);
+    };
+
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+        </div>
+      );
+    }
+
+    // Show landing page if no call centers exist
+    if (callCenters.length === 0) {
+      return <CallCenterLanding onCreateCenter={handleCreateCenter} />;
+    }
+
+    // Show dashboard if call centers exist
+    return <CallCenterDashboard />;
+  };
       case 'developer': return <DeveloperDashboard />;
       default: return <Dashboard />;
     }
