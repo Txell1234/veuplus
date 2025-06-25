@@ -2255,6 +2255,12 @@ function App() {
       case 'chatbots': return <Chatbots />;
       case 'voicebots': return <Voicebots />;
       case 'knowledge': return <KnowledgeBase />;
+      case 'call-center': return <CallCenterView />;
+      case 'developer': return <DeveloperDashboard />;
+      default: return <Dashboard />;
+    }
+  };
+
   const CallCenterView = () => {
     const [callCenters, setCallCenters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -2293,10 +2299,6 @@ function App() {
 
     // Show dashboard if call centers exist
     return <CallCenterDashboard />;
-  };
-      case 'developer': return <DeveloperDashboard />;
-      default: return <Dashboard />;
-    }
   };
 
   return (
