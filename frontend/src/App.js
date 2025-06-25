@@ -676,6 +676,7 @@ function App() {
             { id: 'knowledge', label: t('knowledgeBase'), icon: '📚', gradient: 'from-indigo-500 to-indigo-600' },
             { id: 'training', label: t('voiceTraining'), icon: '🎤', gradient: 'from-green-500 to-green-600' },
             { id: 'training-advanced', label: 'XTTS v2 Training', icon: '🚀', gradient: 'from-red-500 to-red-600' },
+            { id: 'call-center', label: 'Call Center AI', icon: '📞', gradient: 'from-indigo-500 to-indigo-600' },
             { id: 'developer', label: 'Developer Dashboard', icon: '👨‍💻', gradient: 'from-gray-500 to-gray-600' },
           ].map(item => (
             <button
