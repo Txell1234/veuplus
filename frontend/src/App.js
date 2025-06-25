@@ -441,7 +441,9 @@ function App() {
   const [selectedVoicebot, setSelectedVoicebot] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [voiceSelectionCallback, setVoiceSelectionCallback] = useState(null);
+  // Call center state
+  const [showCallCenterCreation, setShowCallCenterCreation] = useState(false);
+  const [callCenters, setCallCenters] = useState([]);
 
   // Get translation function
   const t = (key) => translations[currentLanguage][key] || translations.en[key] || key;
