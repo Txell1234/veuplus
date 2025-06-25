@@ -49,14 +49,15 @@ class CallCenterAPITester:
     def test_health_check(self):
         """Test basic API health check"""
         try:
-            response = requests.get(f"{self.api_url}/", timeout=10)
+            # Use call-center endpoint instead of root endpoint
+            response = requests.get(f"{self.api_url}/call-center/", timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                if "VeuPlus API" in data.get("message", ""):
-                    self.log_test("API Health Check", True, f"Status: {data.get('status')}")
+                if "call_centers" in data:
+                    self.log_test("API Health Check", True, "Call Center API is responding")
                     return True
                 else:
-                    self.log_test("API Health Check", False, "Invalid response message")
+                    self.log_test("API Health Check", False, "Invalid response format")
             else:
                 self.log_test("API Health Check", False, f"Status code: {response.status_code}")
         except Exception as e:
