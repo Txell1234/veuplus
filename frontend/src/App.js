@@ -509,6 +509,8 @@ function App() {
     setShowDeleteModal(true);
   };
 
+  const [voiceSelectionCallback, setVoiceSelectionCallback] = useState(null);
+
   // Voice selection helper
   const openVoiceSelection = (callback, currentVoiceId = null) => {
     setSelectedVoice(currentVoiceId);
