@@ -2264,6 +2264,7 @@ function App() {
   const CallCenterView = () => {
     const [callCenters, setCallCenters] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showDashboard, setShowDashboard] = useState(false);
 
     useEffect(() => {
       loadCallCenters();
@@ -2272,7 +2273,12 @@ function App() {
     const loadCallCenters = async () => {
       try {
         const response = await axios.get(`${API}/call-center/`);
-        setCallCenters(response.data.call_centers || []);
+        const centers = response.data.call_centers || [];
+        setCallCenters(centers);
+        
+        // If there are call centers, we can show dashboard directly
+        // But let's always start with landing page for marketing purposes
+        setShowDashboard(false);
       } catch (error) {
         console.error('Error loading call centers:', error);
       } finally {
@@ -2281,7 +2287,12 @@ function App() {
     };
 
     const handleCreateCenter = () => {
-      setShowCallCenterCreation(true);
+      // Show dashboard after creation intent
+      setShowDashboard(true);
+    };
+
+    const handleViewDashboard = () => {
+      setShowDashboard(true);
     };
 
     if (loading) {
@@ -2292,12 +2303,27 @@ function App() {
       );
     }
 
-    // Show landing page if no call centers exist
-    if (callCenters.length === 0) {
-      return <CallCenterLanding onCreateCenter={handleCreateCenter} />;
+    // Always show landing page first for marketing, unless explicitly requesting dashboard
+    if (!showDashboard) {
+      return (
+        <div>
+          <CallCenterLanding onCreateCenter={handleCreateCenter} />
+          {callCenters.length > 0 && (
+            <div className="fixed bottom-4 right-4 z-50">
+              <button
+                onClick={handleViewDashboard}
+                className="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>View Dashboard</span>
+              </button>
+            </div>
+          )}
+        </div>
+      );
     }
 
-    // Show dashboard if call centers exist
+    // Show dashboard when requested
     return <CallCenterDashboard />;
   };
 
