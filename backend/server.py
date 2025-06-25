@@ -55,6 +55,14 @@ try:
 except ImportError as e:
     print(f"⚠️ Real Voice Training not available: {str(e)}")
 
+# Import call center system
+try:
+    from call_center_system import call_center_router
+    app.include_router(call_center_router)
+    print("✅ Call Center AI System enabled")
+except ImportError as e:
+    print(f"⚠️ Call Center System not available: {str(e)}")
+
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
 STATIC_DIR = Path("backend/static")
