@@ -7,8 +7,16 @@ import CallCenterDashboard from './CallCenterDashboard';
 import CallCenterLanding from './CallCenterLanding';
 import './App.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const getApiBase = () => {
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}/api`;
+  if (typeof window !== 'undefined' && window.location && window.location.port === '3000') {
+    return 'http://localhost:8001/api';
+  }
+  return '/api';
+};
+
+const API = getApiBase();
 
 // Complete Multi-language translations
 const translations = {
@@ -418,6 +426,19 @@ const LANGUAGE_OPTIONS = [
 
 // Main App Component
 function App() {
+  // Theme (light/dark)
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.remove('light', 'dark');
+    html.classList.add(theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
   const [currentView, setCurrentView] = useState('dashboard');
   const [currentLanguage, setCurrentLanguage] = useState('ca');
   const [voices, setVoices] = useState([]);
@@ -1333,8 +1354,8 @@ function App() {
   const ChatbotModal = () => {
     const [formData, setFormData] = useState({
       name: '',
-      llm_provider: 'openai',
-      model_name: 'gpt-3.5-turbo',
+      llm_provider: 'transformers',
+      model_name: 'openai/gpt-oss-20b',
       temperature: 0.7,
       system_prompt: 'Ets un assistent d\'IA que parla català. Respon sempre en català de manera útil i amigable.',
       api_key: '',
@@ -1353,8 +1374,8 @@ function App() {
         setShowChatbotModal(false);
         setFormData({
           name: '',
-          llm_provider: 'openai',
-          model_name: 'gpt-3.5-turbo',
+          llm_provider: 'transformers',
+          model_name: 'openai/gpt-oss-20b',
           temperature: 0.7,
           system_prompt: 'Ets un assistent d\'IA que parla català. Respon sempre en català de manera útil i amigable.',
           api_key: '',
@@ -1407,6 +1428,7 @@ function App() {
                     onChange={(e) => setFormData({...formData, llm_provider: e.target.value})}
                     className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
+                    <option value="transformers">Transformers (Local/VLLM)</option>
                     <option value="openai">OpenAI</option>
                     <option value="claude">Claude</option>
                     <option value="gemini">Gemini</option>
@@ -1422,6 +1444,13 @@ function App() {
                     onChange={(e) => setFormData({...formData, model_name: e.target.value})}
                     className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
+                    {formData.llm_provider === 'transformers' && (
+                      <>
+                        <option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option>
+                        <option value="microsoft/DialoGPT-medium">microsoft/DialoGPT-medium</option>
+                        <option value="gpt2">gpt2</option>
+                      </>
+                    )}
                     {formData.llm_provider === 'openai' && (
                       <>
                         <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
@@ -1536,6 +1565,7 @@ function App() {
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [streaming, setStreaming] = useState(true);
 
     const sendMessage = async () => {
       if (!inputMessage.trim()) return;
@@ -1545,14 +1575,68 @@ function App() {
       setIsSending(true);
       
       try {
-        const response = await axios.post(`${API}/chatbots/chat`, {
-          message: inputMessage,
-          bot_id: bot.id,
-          conversation_history: messages
-        });
-        
-        const botMessage = { role: 'assistant', content: response.data.reply };
-        setMessages(prev => [...prev, botMessage]);
+        if (streaming) {
+          // Streaming via SSE-like fetch
+          const payload = {
+            messages: [
+              ...messages,
+              userMessage,
+            ],
+            model: bot.model_name || 'openai/gpt-oss-20b',
+            max_tokens: 512,
+            temperature: bot.temperature ?? 0.7,
+          };
+          const resp = await fetch(`${API}/transformers/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.body) throw new Error('No stream body');
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+          let assistantText = '';
+          // push assistant placeholder
+          setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split(/\r?\n/).filter(Boolean);
+            for (const line of lines) {
+              if (!line.startsWith('data:')) continue;
+              const dataStr = line.slice(5).trim();
+              if (dataStr === '[DONE]') {
+                continue;
+              }
+              try {
+                const obj = JSON.parse(dataStr);
+                let delta = '';
+                if (typeof obj.delta === 'string') delta = obj.delta;
+                else if (obj.choices?.[0]?.delta?.content) delta = obj.choices[0].delta.content;
+                else if (obj.choices?.[0]?.message?.content) delta = obj.choices[0].message.content;
+                if (delta) {
+                  assistantText += delta;
+                  setMessages(prev => {
+                    const out = [...prev];
+                    // last message is assistant placeholder
+                    out[out.length - 1] = { role: 'assistant', content: assistantText };
+                    return out;
+                  });
+                }
+              } catch {
+                // ignore non-json lines
+              }
+            }
+          }
+        } else {
+          const response = await axios.post(`${API}/chatbots/chat`, {
+            message: inputMessage,
+            bot_id: bot.id,
+            conversation_history: messages
+          });
+          const botMessage = { role: 'assistant', content: response.data.reply };
+          setMessages(prev => [...prev, botMessage]);
+        }
       } catch (error) {
         console.error('Error sending message:', error);
         const errorMessage = { 
@@ -1601,7 +1685,11 @@ function App() {
             )}
           </div>
           
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 items-center">
+            <label className="text-sm text-gray-600 flex items-center space-x-2">
+              <input type="checkbox" checked={streaming} onChange={(e)=>setStreaming(e.target.checked)} />
+              <span>Stream</span>
+            </label>
             <input
               type="text"
               value={inputMessage}
@@ -2328,9 +2416,15 @@ function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className={`flex min-h-screen transition-colors duration-300`} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <Navigation />
       <div className="flex-1">
+        {/* Theme toggle */}
+        <div className="flex justify-end p-4">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="px-3 py-2 text-sm rounded border border-gray-300 dark:border-slate-600">
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
+        </div>
         {renderView()}
       </div>
       

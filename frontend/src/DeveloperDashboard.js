@@ -9,7 +9,17 @@ const DeveloperDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [newApiKey, setNewApiKey] = useState('');
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const getApiBase = () => {
+    const envUrl = process.env.REACT_APP_BACKEND_URL;
+    if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}`;
+    if (typeof window !== 'undefined' && window.location && window.location.port === '3000') {
+      return 'http://localhost:8001';
+    }
+    return '';
+  };
+
+  // API base debe incluir /api
+  const API = `${getApiBase()}/api`;
 
   useEffect(() => {
     loadDashboardData();

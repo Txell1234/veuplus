@@ -11,7 +11,6 @@ from datetime import datetime
 import logging
 import json
 from fastapi import HTTPException
-import motor.motor_asyncio
 import numpy as np
 import soundfile as sf
 import librosa
@@ -19,14 +18,17 @@ import librosa
 # Setup logging
 logger = logging.getLogger(__name__)
 
-# Database connection
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+# Database: use SQLite helper
+try:
+    from backend.database_sql import db
+except Exception:
+    from database_sql import db
 
-# Voice model storage
-VOICE_MODELS_DIR = Path("/app/backend/voice_models")
+# Voice model storage (local-friendly)
+if Path("/app/backend").exists():
+    VOICE_MODELS_DIR = Path("/app/backend/voice_models")
+else:
+    VOICE_MODELS_DIR = Path(__file__).parent / "voice_models"
 VOICE_MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
 class RealVoiceTrainer:
@@ -34,7 +36,10 @@ class RealVoiceTrainer:
     
     def __init__(self):
         self.base_dir = VOICE_MODELS_DIR
-        self.temp_dir = Path("/app/backend/temp_training")
+        if Path("/app/backend").exists():
+            self.temp_dir = Path("/app/backend/temp_training")
+        else:
+            self.temp_dir = Path(__file__).parent / "temp_training"
         self.temp_dir.mkdir(exist_ok=True, parents=True)
     
     async def create_voice_model(self, name: str, language: str, dialect: str, 
@@ -87,8 +92,8 @@ class RealVoiceTrainer:
                 "real_model": True
             }
             
-            # Save to database
-            await db.voice_models.insert_one(model_data)
+            # Save to database (SQLite)
+            db.create_voice_model(model_data)
             
             logger.info(f"Voice model created successfully: {voice_id}")
             return model_data
@@ -499,12 +504,8 @@ class RealVoiceTrainer:
         """List all available voice models"""
         
         try:
-            models = await db.voice_models.find({}).to_list(1000)
-            
-            # Remove MongoDB ObjectId
-            for model in models:
-                if '_id' in model:
-                    del model['_id']
+            # SQLite query
+            models = db.get_voice_models()
             
             # Add model status info
             for model in models:
@@ -523,10 +524,10 @@ class RealVoiceTrainer:
         """Delete a voice model and its files"""
         
         try:
-            # Delete from database
-            result = await db.voice_models.delete_one({"id": voice_id})
+            # Delete from SQLite database
+            success = db.delete_voice_model(voice_id)
             
-            if result.deleted_count > 0:
+            if success:
                 # Delete model files
                 model_dir = self.base_dir / voice_id
                 if model_dir.exists():

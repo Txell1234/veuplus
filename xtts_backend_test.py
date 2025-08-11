@@ -8,7 +8,7 @@ import ssl
 from datetime import datetime
 
 class XTTSTrainingTester:
-    def __init__(self, base_url="https://54fe411b-0f98-4906-bf8c-c8a6fc8763b7.preview.emergentagent.com"):
+    def __init__(self, base_url="http://localhost:8001"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
@@ -306,7 +306,7 @@ class XTTSTrainingTester:
 
 def main():
     # Get base URL from command line if provided
-    base_url = "https://54fe411b-0f98-4906-bf8c-c8a6fc8763b7.preview.emergentagent.com"
+    base_url = "http://localhost:8001"
     
     # Run tests
     tester = XTTSTrainingTester(base_url)

@@ -11,7 +11,18 @@ const VoiceTrainingAdvanced = () => {
   const [isLoading, setIsLoading] = useState(false);
   const wsRef = useRef(null);
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const getApiBase = () => {
+    const envUrl = process.env.REACT_APP_BACKEND_URL;
+    if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}`;
+    if (typeof window !== 'undefined' && window.location && window.location.port === '3000') {
+      return 'http://localhost:8001';
+    }
+    return '';
+  };
+  // API base debe incluir /api para llamadas HTTP
+  const API = `${getApiBase()}`;
+  // Sanity: asegurar que axios usa la URL del backend
+  const ax = axios.create({ baseURL: API });
 
   // Training form state
   const [trainingForm, setTrainingForm] = useState({
@@ -47,9 +58,9 @@ const VoiceTrainingAdvanced = () => {
       
       // Load all dashboard data in parallel
       const [sessionsRes, statusRes, languagesRes] = await Promise.all([
-        axios.get(`${API}/api/training/jobs`),
-        axios.get(`${API}/api/training/system/status`),
-        axios.get(`${API}/api/training/languages`)
+        ax.get(`/api/training/jobs`),
+        ax.get(`/api/training/system/status`),
+        ax.get(`/api/training/languages`)
       ]);
       
       setTrainingSessions(sessionsRes.data.jobs || []);
@@ -66,7 +77,7 @@ const VoiceTrainingAdvanced = () => {
       console.error('Error loading training data:', error);
       // Try alternative endpoint structure
       try {
-        const languagesRes = await axios.get(`${API}/api/training/languages`);
+      const languagesRes = await ax.get(`/api/training/languages`);
         setSupportedLanguages(languagesRes.data.supported_languages || {});
       } catch (altError) {
         console.error('Alternative load failed:', altError);
@@ -81,8 +92,10 @@ const VoiceTrainingAdvanced = () => {
       wsRef.current.close();
     }
 
-    // Use the same domain but switch to WebSocket protocol
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/training/ws/${jobId}`;
+    // Conectar al backend (no al puerto del frontend)
+    const backendHttp = API; // e.g., http://localhost:8001
+    const wsBase = backendHttp.replace(/^http/i, backendHttp.startsWith('https') ? 'wss' : 'ws');
+    const wsUrl = `${wsBase}/api/training/ws/${jobId}`;
     console.log('Connecting to WebSocket:', wsUrl);
     
     wsRef.current = new WebSocket(wsUrl);
@@ -118,7 +131,7 @@ const VoiceTrainingAdvanced = () => {
     setIsLoading(true);
     try {
       console.log('Starting training with data:', trainingForm);
-      const response = await axios.post(`${API}/api/training/start`, trainingForm);
+      const response = await ax.post(`/api/training/start`, trainingForm);
       const jobId = response.data.job_id;
       
       console.log('Training started with job ID:', jobId);
@@ -141,7 +154,7 @@ const VoiceTrainingAdvanced = () => {
 
   const cancelTraining = async (jobId) => {
     try {
-      await axios.delete(`${API}/api/training/jobs/${jobId}`);
+      await ax.delete(`/api/training/jobs/${jobId}`);
       loadInitialData();
       
       if (currentJob === jobId) {
@@ -195,7 +208,7 @@ const VoiceTrainingAdvanced = () => {
     
     return (
       <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Select Language & Dialect</h3>
+        <h3 className="text-xl font-semibold">Select Language & Dialect</h3>
         
         {Object.keys(languages).length === 0 ? (
           <div className="text-center py-8">
@@ -208,11 +221,7 @@ const VoiceTrainingAdvanced = () => {
               <div
                 key={langCode}
                 onClick={() => setTrainingForm(prev => ({ ...prev, language: langCode }))}
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                  trainingForm.language === langCode
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                className={`card p-4 cursor-pointer transition-all ${trainingForm.language === langCode ? 'ring-2 ring-brand-500' : 'hover:scale-[1.01]'}`}
               >
                 <div className="text-lg font-semibold mb-2">
                   {langData.name}
@@ -221,7 +230,7 @@ const VoiceTrainingAdvanced = () => {
                   {langData.dialects?.length || 0} dialects supported
                 </div>
                 {langCode === 'ca' && (
-                  <div className="mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                  <div className="mt-2 text-xs px-2 py-1 rounded glass inline-block">
                     Hyperrealistic Quality
                   </div>
                 )}
@@ -238,11 +247,7 @@ const VoiceTrainingAdvanced = () => {
                 <button
                   key={dialect}
                   onClick={() => setTrainingForm(prev => ({ ...prev, dialect }))}
-                  className={`p-3 text-sm rounded-lg border transition-all ${
-                    trainingForm.dialect === dialect
-                      ? 'border-purple-500 bg-purple-50 text-purple-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`p-3 text-sm rounded-lg border transition-all ${trainingForm.dialect === dialect ? 'ring-2 ring-brand-500' : 'hover:scale-[1.01]'} card`}
                 >
                   {dialect.charAt(0).toUpperCase() + dialect.slice(1)}
                 </button>
@@ -254,14 +259,14 @@ const VoiceTrainingAdvanced = () => {
         <div className="flex justify-between mt-8">
           <button
             onClick={() => setActiveStep(1)}
-            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            className="btn-secondary"
           >
             Back
           </button>
           <button
             onClick={() => setActiveStep(3)}
             disabled={!trainingForm.language}
-            className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
             Next: Configuration
           </button>

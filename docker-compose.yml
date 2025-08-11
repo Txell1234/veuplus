@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  veuplus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: veuplus:latest
+    container_name: veuplus_app
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Warmups opcionales
+      - WARMUP_TTS=${WARMUP_TTS:-0}
+      - PRELOAD_AINA_DATASET=${PRELOAD_AINA_DATASET:-0}
+      # Backend URL para frontend (si se usa en build-time, fijar en build)
+      - FRONTEND_ENV=REACT_APP_BACKEND_URL=http://localhost:8080
+      # Dataset local opcional
+      - CATALAN_DATASET_PATH=/data/catalan
+    ports:
+      - "8080:8080"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+      - torch_cache:/root/.cache/torch
+      - data:/data
+      - models:/backend/models
+      - audio:/backend/temp_audio
+      - db:/data
+    restart: unless-stopped
+
+volumes:
+  hf_cache:
+  torch_cache:
+  data:
+  models:
+  audio:
+  db:
+
+

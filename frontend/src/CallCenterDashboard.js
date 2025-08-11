@@ -11,7 +11,15 @@ const CallCenterDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const getApiBase = () => {
+    const envUrl = process.env.REACT_APP_BACKEND_URL;
+    if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}`;
+    if (typeof window !== 'undefined' && window.location && window.location.port === '3000') {
+      return 'http://localhost:8001';
+    }
+    return '';
+  };
+  const API = getApiBase();
 
   useEffect(() => {
     loadCallCenters();

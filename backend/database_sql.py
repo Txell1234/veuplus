@@ -11,14 +11,33 @@ import uuid
 # Setup logging
 logger = logging.getLogger(__name__)
 
-# Database path
-DB_PATH = Path("/app/backend/veuplus.db")
+# Database path strategy (server-only; no frontend access)
+# Priority:
+# 1) VEUPLUS_DB_PATH env var
+# 2) /data/veuplus.db (Docker volume)
+# 3) /backend/veuplus.db or /app/backend/veuplus.db (container)
+# 4) Local file next to this module
+import os
+
+env_db_path = os.environ.get("VEUPLUS_DB_PATH")
+if env_db_path:
+    DB_PATH = Path(env_db_path)
+elif Path("/data").exists():
+    DB_PATH = Path("/data/veuplus.db")
+elif Path("/backend").exists():
+    DB_PATH = Path("/backend/veuplus.db")
+elif Path("/app/backend").exists():
+    DB_PATH = Path("/app/backend/veuplus.db")
+else:
+    DB_PATH = Path(__file__).parent / "veuplus.db"
 
 class VeuPlusDatabase:
     """SQL Database manager for VeuPlus platform"""
     
     def __init__(self):
         self.db_path = DB_PATH
+        # Ensure the directory exists
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
     
     def get_connection(self):
@@ -81,7 +100,8 @@ class VeuPlusDatabase:
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     voice_model_id TEXT NOT NULL,
-                    llm_provider TEXT NOT NULL,
+                    llm_provider TEXT NOT NULL DEFAULT 'transformers',
+                    llm_model TEXT NOT NULL DEFAULT 'microsoft/DialoGPT-medium',
                     model_name TEXT NOT NULL,
                     temperature REAL DEFAULT 0.7,
                     system_prompt TEXT,

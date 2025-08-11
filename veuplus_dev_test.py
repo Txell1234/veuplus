@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 class VeuPlusDeveloperPlatformTester:
-    def __init__(self, base_url="https://54fe411b-0f98-4906-bf8c-c8a6fc8763b7.preview.emergentagent.com"):
+    def __init__(self, base_url="http://localhost:8001"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.dev_api_url = f"{self.api_url}/dev"

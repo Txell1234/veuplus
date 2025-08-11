@@ -1,0 +1,52 @@
+# Stage 1: Build React App
+FROM node:20 AS frontend-build
+ARG FRONTEND_ENV
+ENV FRONTEND_ENV=${FRONTEND_ENV}
+WORKDIR /app
+COPY frontend/ /app/
+RUN rm -f /app/.env && touch /app/.env \
+    && echo "${FRONTEND_ENV}" | tr ',' '\n' > /app/.env \
+    && cat /app/.env
+RUN yarn install --frozen-lockfile && yarn build
+
+# Stage 2: Final Image with CUDA Runtime + Nginx + Python
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/root/.cache/huggingface \
+    TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers \
+    TORCH_HOME=/root/.cache/torch
+
+WORKDIR /
+
+# System deps: Python 3.11, Nginx, audio libs, tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3-pip \
+    nginx \
+    ffmpeg espeak-ng libsndfile1 git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy built frontend
+COPY --from=frontend-build /app/build /usr/share/nginx/html
+
+# Copy backend source
+WORKDIR /backend
+COPY backend/ /backend/
+COPY requirements.txt /backend/requirements.txt
+
+# Nginx config and entrypoint
+WORKDIR /
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Install Python deps with CUDA-enabled PyTorch
+RUN python3.11 -m pip install --upgrade pip setuptools wheel \
+    && python3.11 -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 torch torchaudio \
+    && python3.11 -m pip install --no-cache-dir -r /backend/requirements.txt
+
+EXPOSE 8080
+CMD ["/entrypoint.sh"]
+
+

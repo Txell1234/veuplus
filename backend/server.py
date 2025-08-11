@@ -1,31 +1,33 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Iterable
 import uuid
 import os
 import logging
 from pathlib import Path
-import motor.motor_asyncio
 from datetime import datetime
 import subprocess
 import shutil
 from uuid import uuid4
 import asyncio
+import hashlib
+from collections import OrderedDict
+from typing import Iterable
+from pathlib import Path
 
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
-# MongoDB setup
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
-
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+# SQLite Database setup - NO MORE MONGO!
+try:
+    from backend.database_sql import db as sql_db
+except ImportError:
+    from database_sql import db as sql_db
 
 # Initialize FastAPI
 app = FastAPI(
@@ -36,15 +38,57 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 api_router = APIRouter(prefix="/api")
+# Voice import DTOs
+class VoiceImportResponse(BaseModel):
+    voice_id: str
+    message: str
+    sample_url: Optional[str] = None
+    model_url: Optional[str] = None
+
+
+# Language utilities for multilingual TTS
+SUPPORTED_LANGS: Dict[str, str] = {
+    # canonical -> canonical
+    "ca": "ca",
+    "es": "es",
+    "en": "en",
+    "fr": "fr",
+}
+
+LANG_ALIASES: Dict[str, str] = {
+    # Catalan
+    "catalan": "ca", "català": "ca", "cat": "ca",
+    # Spanish
+    "spanish": "es", "español": "es", "castellano": "es", "spa": "es", "es-es": "es",
+    # English
+    "eng": "en", "en-us": "en", "en-gb": "en",
+    # French
+    "fra": "fr", "fre": "fr", "fr-fr": "fr",
+}
+
+def normalize_language_code(code: Optional[str]) -> str:
+    if not code:
+        return "ca"
+    lc = code.lower()
+    if lc in SUPPORTED_LANGS:
+        return lc
+    return LANG_ALIASES.get(lc, "ca")
+
+# Phonetic transcriber (SEGRE) for Catalan only
+try:
+    from backend.phonology.segre_transcriber import transcribe as segre_transcribe, supports_language as segre_supports
+    segre_available = True
+except Exception:
+    segre_available = False
 
 # Import and include developer dashboard
 try:
-    # Try with absolute import
+    # Try with absolute import - Use SQLite version
     import sys
     sys.path.append('/app/backend')
     from developer_dashboard import dev_router
     app.include_router(dev_router)
-    print("✅ Developer Dashboard enabled")
+    print("✅ Developer Dashboard (SQLite) enabled")
 except ImportError as e:
     print(f"⚠️ Developer Dashboard not available: {str(e)}")
 
@@ -63,18 +107,110 @@ try:
 except ImportError as e:
     print(f"⚠️ Call Center System not available: {str(e)}")
 
+# Import training pipeline (XTTS v2)
+try:
+    from voice_training_pipeline import training_router
+    app.include_router(training_router)
+    print("✅ Voice Training API enabled (/api/training)")
+except ImportError as e:
+    print(f"⚠️ Voice Training API not available: {str(e)}")
+
+# Import transformers service
+try:
+    from transformers_service import transformers_router
+    app.include_router(transformers_router)
+    print("✅ Transformers Service enabled")
+except ImportError as e:
+    print(f"⚠️ Transformers Service not available: {str(e)}")
+
+# Import ASR service (Whisper)
+try:
+    from asr_service import asr_router
+    app.include_router(asr_router)
+    print("✅ ASR Service (Whisper) enabled")
+except ImportError as e:
+    print(f"⚠️ ASR Service not available: {str(e)}")
+
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
 STATIC_DIR = Path("backend/static")
+MODELS_BASE_DIR = Path("backend")
 TEMP_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+# Voice Import API (model.zip or direct files)
+from fastapi import UploadFile
+from typing import Optional
+import zipfile
+try:
+    from backend.storage import store_model_artifact, store_audio_sample
+except ImportError:
+    from storage import store_model_artifact, store_audio_sample
+
+
+@api_router.post("/voices/import", response_model=VoiceImportResponse)
+async def import_voice_model(file: UploadFile, name: str = "", language: str = "ca", dialect: str = "central"):
+    """Import a voice model package (zip) with final_model.json, training_config.json, sample.wav, metadata.json"""
+    try:
+        voice_id = str(uuid4())
+        data = await file.read()
+
+        # Unzip in memory and store artifacts
+        with tempfile.TemporaryDirectory() as td:
+            temp_zip = Path(td) / "model.zip"
+            with open(temp_zip, "wb") as f:
+                f.write(data)
+            with zipfile.ZipFile(temp_zip, 'r') as zf:
+                members = zf.namelist()
+                model_bytes = zf.read("final_model.json") if "final_model.json" in members else None
+                cfg_bytes = zf.read("training_config.json") if "training_config.json" in members else None
+                sample_bytes = None
+                for cand in ["sample.wav", "sample_audio.wav", "test_voice.wav"]:
+                    if cand in members:
+                        sample_bytes = zf.read(cand)
+                        break
+
+        model_url = None
+        sample_url = None
+
+        if model_bytes:
+            _, model_url = store_model_artifact(voice_id, "final_model.json", model_bytes, MODELS_BASE_DIR)
+        if cfg_bytes:
+            store_model_artifact(voice_id, "training_config.json", cfg_bytes, MODELS_BASE_DIR)
+        if sample_bytes:
+            _, sample_url = store_audio_sample(voice_id, "sample.wav", sample_bytes, MODELS_BASE_DIR)
+
+        # Register in DB (SQLite for local)
+        try:
+            from backend.database_sql import db as sql_db
+        except Exception:
+            from database_sql import db as sql_db
+
+        sql_db.create_voice_model({
+            "id": voice_id,
+            "name": name or f"Imported Voice {voice_id[:8]}",
+            "language": language,
+            "dialect": dialect,
+            "status": "ready",
+            "progress": 100,
+            "model_path": str(MODELS_BASE_DIR / f"models/{voice_id}"),
+            "sample_audio": sample_url or str(MODELS_BASE_DIR / f"voice_models/{voice_id}/sample.wav"),
+            "quality": "imported",
+            "real_model": True,
+            "config": {"source": "import"},
+        })
+
+        return VoiceImportResponse(voice_id=voice_id, message="Voice model imported", sample_url=sample_url, model_url=model_url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 # OpenAI setup
 openai_client = None
 openai_available = False
+unsloth_available = False
 
 try:
     import openai
@@ -88,14 +224,218 @@ try:
 except ImportError:
     print("⚠️ OpenAI library not available")
 
-# Check for datasets library
+# Optional: Unsloth LLM backend
+try:
+    from backend import unsloth_llm
+    unsloth_llm.load_model()
+    unsloth_available = unsloth_llm.is_available()
+    if unsloth_available:
+        print("✅ Unsloth LLM backend available")
+except Exception as _e:
+    print(f"⚠️ Unsloth backend not available: {_e}")
+
+# Optional: Coqui TTS (XTTS v2) lazy loader
+xtts_model = None
+xtts_available = False
+xtts_lib_available = False
+try:
+    from TTS.api import TTS as _TTSProbe  # probe only
+    xtts_lib_available = True
+    del _TTSProbe
+    print("✅ Coqui TTS library available")
+except Exception as _e:
+    print(f"⚠️ Coqui TTS library not available: {_e}")
+
+def get_xtts_model():
+    """Lazy load Coqui XTTS v2 model once per process."""
+    global xtts_model, xtts_available
+    if xtts_model is not None:
+        return xtts_model
+    try:
+        from TTS.api import TTS as CoquiTTS
+        # Multilingual cross-lingual TTS model (supports Catalan via language code)
+        xtts_model = CoquiTTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
+        xtts_available = True
+        print("✅ Coqui XTTS v2 loaded successfully")
+    except Exception as e:
+        xtts_model = None
+        xtts_available = False
+        print(f"⚠️ Coqui XTTS not available: {e}")
+    return xtts_model
+
+# Optional: datasets availability for preload/health
 datasets_available = False
 try:
-    from datasets import load_dataset
+    from datasets import load_dataset as _load_dataset_probe  # noqa: F401
     datasets_available = True
     print("✅ Datasets library available")
-except ImportError:
-    print("⚠️ Datasets library not available")
+except Exception as _e:
+    print(f"⚠️ Datasets library not available: {_e}")
+
+# Simple in-memory LRU cache for synthesized audio (by text + voice params)
+MAX_CACHE_ITEMS = 100
+_audio_cache: "OrderedDict[str, tuple[str, Path]]" = OrderedDict()
+
+def _make_cache_key(text: str, language: str, dialect: str, voice_model_id: str) -> str:
+    key = f"{language}|{dialect}|{voice_model_id}|{text}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()
+
+def _cache_get(key: str) -> tuple[str, Path] | None:
+    item = _audio_cache.get(key)
+    if item:
+        # move to end (most recently used)
+        _audio_cache.move_to_end(key)
+    return item
+
+def _cache_set(key: str, audio_id: str, path: Path) -> None:
+    _audio_cache[key] = (audio_id, path)
+    _audio_cache.move_to_end(key)
+    if len(_audio_cache) > MAX_CACHE_ITEMS:
+        _audio_cache.popitem(last=False)
+
+def _find_reference_wavs() -> list[Path]:
+    base = Path("backend/voice_models")
+    if not base.exists():
+        return []
+    wavs: list[Path] = []
+    for sub in sorted(base.glob("*/**/test_voice.wav")):
+        wavs.append(sub)
+    for sub in sorted(base.glob("*/test_voice.wav")):
+        if sub not in wavs:
+            wavs.append(sub)
+    return wavs
+
+def _get_dialect_reference_wav(dialect: str) -> Path | None:
+    """Best-effort mapping of dialect to a reference speaker WAV if available."""
+    candidates = _find_reference_wavs()
+    if not candidates:
+        return None
+    order = [
+        "central",
+        "balearic",
+        "valencian",
+        "andorran",
+        "rossellones",
+        "alguerese",
+    ]
+    try:
+        idx = order.index(dialect)
+    except ValueError:
+        idx = 0
+    if idx < len(candidates):
+        return candidates[idx]
+    return candidates[0]
+
+def _select_pyttsx3_voice_or_fail(engine) -> None:
+    """Select a Catalan/Spanish voice; raise if not found."""
+    try:
+        voices = engine.getProperty('voices') or []
+    except Exception as e:
+        logging.getLogger(__name__).error(f"pyttsx3: no se pudieron obtener las voces: {e}")
+        raise
+
+    for voice in voices:
+        name = (getattr(voice, 'name', '') or '').lower()
+        langs = getattr(voice, 'languages', []) or []
+        langs_text = ' '.join([str(l).lower() for l in langs])
+        # Match by name or languages list
+        if any(tag in name for tag in ['catalan', 'valencian', 'balear', 'ca', 'spanish', 'es']) or \
+           any(tag in langs_text for tag in ['catalan', 'ca', 'spanish', 'es']):
+            engine.setProperty('voice', voice.id)
+            logging.getLogger(__name__).info(f"pyttsx3: usando voz '{voice.name}' ({voice.id})")
+            return
+
+    logging.getLogger(__name__).error("pyttsx3: no se encontró voz catalán/española válida")
+    raise RuntimeError("No se encontró voz catalán/española en pyttsx3")
+
+def _scan_local_wavs(base_path: Path) -> Iterable[tuple[float, float, Path]]:
+    """Yield tuples of (sample_rate, duration_seconds, path) for .wav files under base_path."""
+    for wav in base_path.rglob("*.wav"):
+        try:
+            import soundfile as sf
+            info = sf.info(str(wav))
+            dur = float(info.frames) / float(info.samplerate)
+            yield float(info.samplerate), dur, wav
+        except Exception:
+            continue
+
+def _find_best_sample_from_datasets(dataset_names: List[str], local_path: Optional[str] = None):
+    """Return best (array, sampling_rate) from local path or remote datasets; None if unavailable."""
+    # 1) Local path scan
+    if local_path:
+        p = Path(local_path)
+        if p.exists():
+            best = None
+            best_score = 0.0
+            for sr, dur, wav in _scan_local_wavs(p):
+                score = sr * dur
+                if score > best_score:
+                    best_score = score
+                    best = (sr, dur, wav)
+            if best:
+                try:
+                    import soundfile as sf
+                    data, sr = sf.read(str(best[2]))
+                    return {"array": data, "sampling_rate": sr}
+                except Exception:
+                    pass
+    # 2) Remote datasets via HF
+    if datasets_available:
+        try:
+            from datasets import load_dataset
+            best_sample = None
+            best_quality = 0.0
+            for name in dataset_names:
+                ds = load_dataset(name, split="train[:10]", trust_remote_code=True)
+                for sample in ds:
+                    audio = sample.get("audio") if isinstance(sample, dict) else getattr(sample, "audio", None)
+                    if isinstance(audio, dict) and "array" in audio and "sampling_rate" in audio:
+                        arr = audio["array"]
+                        sr = audio["sampling_rate"]
+                        dur = len(arr) / max(1, sr)
+                        score = float(sr) * float(dur)
+                        if score > best_quality:
+                            best_quality = score
+                            best_sample = audio
+            if best_sample:
+                return best_sample
+        except Exception as e:
+            print(f"⚠️ Dataset load failed: {e}")
+    return None
+
+def _get_dataset_reference_wav(temp_dir: Path) -> Optional[Path]:
+    """Return a path to a speaker WAV derived from local dataset or HF corpora.
+    - If CATAlAN_DATASET_PATH exists: choose best local wav
+    - Else: fetch best sample from configured HF datasets and write a temp wav
+    """
+    # Local dataset path priority
+    local_path = os.environ.get("CATALAN_DATASET_PATH")
+    if local_path and Path(local_path).exists():
+        # Choose best local wav by sample_rate * duration
+        best_sr = 0.0
+        best_dur = 0.0
+        best_wav: Optional[Path] = None
+        for sr, dur, wav in _scan_local_wavs(Path(local_path)):
+            score = sr * dur
+            if score > best_sr * best_dur:
+                best_sr, best_dur, best_wav = sr, dur, wav
+        if best_wav and best_wav.exists():
+            return best_wav
+
+    # Remote datasets via HF -> write temp wav
+    if datasets_available:
+        try:
+            best = _find_best_sample_from_datasets(CATALAN_DATASETS, None)
+            if best and "array" in best and "sampling_rate" in best:
+                import soundfile as sf
+                ref_path = temp_dir / f"ref_speaker_{uuid.uuid4().hex}.wav"
+                sr = max(int(best["sampling_rate"]), 22050)
+                sf.write(str(ref_path), best["array"], sr, subtype="PCM_16")
+                if ref_path.exists() and ref_path.stat().st_size > 1024:
+                    return ref_path
+        except Exception as e:
+            print(f"⚠️ Could not prepare dataset reference wav: {e}")
+    return None
 
 # Check for espeak-ng
 espeak_available = False
@@ -117,6 +457,12 @@ CATALAN_DIALECTS = [
     {"id": "alguerese", "name": "Alguerès", "region": "L'Alguer, Sardenya"}
 ]
 
+# Supported Catalan corpora (local or Hugging Face)
+CATALAN_DATASETS: List[str] = [
+    "projecte-aina/openslr-slr69-ca-trimmed-denoised",
+    "projecte-aina/4catac",
+]
+
 # Pydantic models
 class SynthesisRequest(BaseModel):
     text: str
@@ -136,18 +482,19 @@ class VoiceTrainingRequest(BaseModel):
 
 class ChatbotCreateRequest(BaseModel):
     name: str
-    llm_provider: str = "openai"
-    model_name: str = "gpt-3.5-turbo"
+    llm_provider: str = "transformers"  # use local transformers by default
+    model_name: str = "openai/gpt-oss-20b"
     temperature: float = 0.7
     system_prompt: str
     api_key: Optional[str] = ""
     knowledge_base_ids: Optional[List[str]] = []
+    reasoning_effort: Optional[str] = "medium"  # used by unsloth
 
 class VoicebotCreateRequest(BaseModel):
     name: str
     voice_model_id: str
-    llm_provider: str = "openai"
-    model_name: str = "gpt-3.5-turbo"
+    llm_provider: str = "transformers"
+    model_name: str = "openai/gpt-oss-20b"
     temperature: float = 0.7
     system_prompt: str
     api_key: Optional[str] = ""
@@ -162,11 +509,13 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "services": {
-            "mongodb": "connected",
+            "sqlite": f"connected:{sql_db.db_path}",
             "openai": "available" if openai_available else "unavailable",
-            "datasets": "available" if datasets_available else "unavailable",
-            "espeak": "available" if espeak_available else "unavailable"
-        }
+            "tts_xtts": "installed" if xtts_lib_available else "not_installed",
+            "espeak": "available" if espeak_available else "unavailable",
+            "unsloth": "available" if unsloth_available else "unavailable",
+        },
+        "supported_languages": list(SUPPORTED_LANGS.keys())
     }
 
 # **ENHANCED SPEECH SYNTHESIS - HYPERREALISTIC CATALAN**
@@ -183,8 +532,9 @@ async def synthesize_speech(request: SynthesisRequest):
             "status": "ready"
         }
     else:
-        voice_model = await db.voice_models.find_one({"id": request.voice_model_id})
-        if not voice_model:
+        # SQLite query for voice model
+        voice_model_rows = sql_db.execute_query("SELECT * FROM voice_models WHERE id = ?", (request.voice_model_id,))
+        if not voice_model_rows:
             voice_model = {
                 "id": "catalan_enhanced", 
                 "name": "Enhanced Catalan",
@@ -202,74 +552,70 @@ async def synthesize_speech(request: SynthesisRequest):
     
     try:
         # Generate unique filename
+        language = normalize_language_code(request.language)
+        dialect = voice_model.get("dialect", "central")
+        cache_key = _make_cache_key(request.text, language, dialect, voice_model["id"])
+        cached = _cache_get(cache_key)
+        if cached:
+            audio_id, cached_path = cached
+            if cached_path.exists():
+                print("♻️ Using cached audio for this text and voice settings")
+                return {
+                    "audio_id": audio_id,
+                    "audio_url": f"/api/audio/{audio_id}",
+                    "text": request.text,
+                    "voice_model": voice_model["name"],
+                    "dialect": dialect,
+                    "synthesis_method": "cache_hit",
+                    "quality": "cached",
+                    "file_size": cached_path.stat().st_size,
+                    "real_audio": True,
+                }
+
         audio_id = str(uuid.uuid4())
         audio_file = TEMP_AUDIO_DIR / f"{audio_id}.wav"
         
         synthesis_success = False
         
-        # Method 1: PRIORITY - Use real OpenSLR Catalan dataset for hyperrealistic voice
-        if datasets_available and not synthesis_success:
+        # Method 1 (PRIORITY): Neural TTS with Coqui XTTS v2
+        if not synthesis_success:
             try:
-                print(f"🎤 INICIATING HYPERREALISTIC Catalan synthesis using OpenSLR dataset...")
-                from datasets import load_dataset
-                
-                # Load high-quality Catalan dataset
-                dataset_name = "projecte-aina/openslr-slr69-ca-trimmed-denoised"
-                print(f"📥 Loading dataset: {dataset_name}")
-                
-                ds_openslr = load_dataset(
-                    dataset_name, 
-                    split="train[:10]",  # Load 10 samples for selection
-                    trust_remote_code=True
-                )
-                
-                # Find best quality sample for synthesis
-                best_sample = None
-                best_quality_score = 0
-                
-                for i, sample in enumerate(ds_openslr):
-                    if hasattr(sample, 'audio') and sample.audio:
-                        # Score based on audio quality indicators
-                        audio_data = sample.audio
-                        if 'array' in audio_data and 'sampling_rate' in audio_data:
-                            # Prefer higher sampling rates and longer samples
-                            sample_rate = audio_data['sampling_rate']
-                            duration = len(audio_data['array']) / sample_rate
-                            quality_score = sample_rate * duration
-                            
-                            if quality_score > best_quality_score:
-                                best_quality_score = quality_score
-                                best_sample = sample
-                                print(f"🔍 Found better sample {i}: {sample_rate}Hz, {duration:.1f}s")
-                
-                if best_sample and 'audio' in best_sample:
-                    audio_data = best_sample.audio
-                    if 'array' in audio_data and 'sampling_rate' in audio_data:
-                        import soundfile as sf
-                        
-                        # Use high-quality parameters
-                        sample_rate = max(audio_data['sampling_rate'], 22050)  # Ensure minimum 22kHz
-                        
-                        # Save with high quality
-                        sf.write(
-                            str(audio_file), 
-                            audio_data['array'], 
-                            sample_rate,
-                            subtype='PCM_16'  # High quality 16-bit PCM
-                        )
-                        
+                model = get_xtts_model()
+                if model is not None:
+                    # Prefer dataset reference wav for Catalan only; otherwise avoid Catalan bias
+                    ref_wav = None
+                    if language == "ca":
+                        ref_wav = _get_dataset_reference_wav(TEMP_AUDIO_DIR) or _get_dialect_reference_wav(dialect)
+                    # If Catalan and transcriber available, use phonetic input
+                    phonetic_text = None
+                    if language == "ca" and segre_available and segre_supports(language):
+                        try:
+                            # Join tokens with spaces; XTTS can leverage phonetic hints in text
+                            phonetic_text = " ".join(segre_transcribe(request.text, dialect=dialect)[0].split())
+                        except Exception:
+                            phonetic_text = None
+
+                    kwargs = {
+                        "text": phonetic_text or request.text,
+                        "file_path": str(audio_file),
+                        "language": language,
+                    }
+                    if ref_wav and ref_wav.exists():
+                        kwargs["speaker_wav"] = str(ref_wav)
+                    elif language == "ca":
+                        # fallback speaker tag solo para catalán
+                        kwargs["speaker"] = "catalan"
+                    model.tts_to_file(**kwargs)
+                    if audio_file.exists() and audio_file.stat().st_size > 1000:
+                        synthesis_method = "xtts_v2_neural_tts"
+                        quality = "neural_tts_hyperrealistic"
                         synthesis_success = True
-                        synthesis_method = "openslr_hyperrealistic_catalan"
-                        quality = "hyperrealistic_catalan_voice"
-                        
-                        print(f"✅ HYPERREALISTIC Catalan voice synthesis SUCCESSFUL!")
-                        print(f"   Sample rate: {sample_rate}Hz")
-                        print(f"   Quality: {quality}")
-                        print(f"   Method: {synthesis_method}")
-                        
+                        print("✅ Coqui XTTS v2 synthesis successful")
             except Exception as e:
-                print(f"⚠️ OpenSLR hyperrealistic synthesis failed: {e}")
-                print(f"   Falling back to alternative methods...")
+                print(f"⚠️ XTTS synthesis failed: {e}")
+
+        # Method 2: Use pyttsx3 for system TTS (better than mock)
+        # (Corpora sampling moved after espeak and guarded by env flag)
 
         # Method 2: Use pyttsx3 for system TTS (better than mock)
         if not synthesis_success:
@@ -278,15 +624,8 @@ async def synthesize_speech(request: SynthesisRequest):
                 import pyttsx3
                 engine = pyttsx3.init()
                 
-                # Configure for best voice quality
-                voices = engine.getProperty('voices')
-                if voices:
-                    # Look for Spanish or similar voice (closest to Catalan)
-                    for voice in voices:
-                        if any(lang in voice.name.lower() for lang in ['spanish', 'es', 'catalan', 'ca']):
-                            engine.setProperty('voice', voice.id)
-                            print(f"✅ Using voice: {voice.name}")
-                            break
+                # Select Catalan/Spanish voice or fail explicitly
+                _select_pyttsx3_voice_or_fail(engine)
                 
                 # Optimize voice settings for Catalan
                 engine.setProperty('rate', 145)    # Slightly slower for clarity
@@ -296,7 +635,14 @@ async def synthesize_speech(request: SynthesisRequest):
                 engine.save_to_file(request.text, str(audio_file))
                 engine.runAndWait()
                 
-                if audio_file.exists() and audio_file.stat().st_size > 1000:
+                # Verify output file integrity
+                if not audio_file.exists():
+                    logging.getLogger(__name__).error("pyttsx3: archivo de salida no generado")
+                    raise RuntimeError("pyttsx3 no generó archivo de audio")
+                if audio_file.stat().st_size <= 1024:
+                    logging.getLogger(__name__).error("pyttsx3: archivo de salida demasiado pequeño (<1KB)")
+                    raise RuntimeError("pyttsx3 generó un archivo demasiado pequeño")
+
                     synthesis_method = "pyttsx3_catalan_optimized"
                     quality = "system_voice_catalan"
                     synthesis_success = True
@@ -340,7 +686,25 @@ async def synthesize_speech(request: SynthesisRequest):
             except Exception as e:
                 print(f"⚠️ espeak-ng failed: {e}")
 
-        # Method 4: Fallback synthesis if all above methods fail
+        # Method 4 (optional): best sample from corpora if explicitly enabled
+        if not synthesis_success and os.environ.get("ENABLE_CORPORA_FALLBACK", "0") == "1":
+            try:
+                best_audio = _find_best_sample_from_datasets(
+                    dataset_names=CATALAN_DATASETS,
+                    local_path=os.environ.get("CATALAN_DATASET_PATH"),
+                )
+                if best_audio and "array" in best_audio and "sampling_rate" in best_audio:
+                    import soundfile as sf
+                    sr = max(int(best_audio["sampling_rate"]), 22050)
+                    sf.write(str(audio_file), best_audio["array"], sr, subtype="PCM_16")
+                    synthesis_success = True
+                    synthesis_method = "catalan_corpora_best_sample"
+                    quality = "hyperrealistic_catalan_sample"
+                    print("✅ Selected best sample from Catalan corpora")
+            except Exception as e:
+                print(f"⚠️ Catalan corpora fallback failed: {e}")
+
+        # Method 5: Fallback synthesis if all above methods fail
         if not synthesis_success:
             print("🎯 Generating fallback clean voice synthesis")
             
@@ -349,14 +713,8 @@ async def synthesize_speech(request: SynthesisRequest):
                 import pyttsx3
                 engine = pyttsx3.init()
                 
-                # Configure voice for Catalan/Spanish
-                voices = engine.getProperty('voices')
-                if voices:
-                    # Try to find a Spanish or similar voice
-                    for voice in voices:
-                        if 'spanish' in voice.name.lower() or 'es' in voice.id.lower():
-                            engine.setProperty('voice', voice.id)
-                            break
+                # Select Catalan/Spanish voice or fail explicitly
+                _select_pyttsx3_voice_or_fail(engine)
                 
                 # Set voice properties
                 engine.setProperty('rate', 150)  # Speaking rate
@@ -366,7 +724,14 @@ async def synthesize_speech(request: SynthesisRequest):
                 engine.save_to_file(request.text, str(audio_file))
                 engine.runAndWait()
                 
-                if audio_file.exists() and audio_file.stat().st_size > 1000:
+                # Verify output file integrity
+                if not audio_file.exists():
+                    logging.getLogger(__name__).error("pyttsx3: archivo de salida no generado (fallback)")
+                    raise RuntimeError("pyttsx3 no generó archivo de audio (fallback)")
+                if audio_file.stat().st_size <= 1024:
+                    logging.getLogger(__name__).error("pyttsx3: archivo de salida demasiado pequeño (<1KB) (fallback)")
+                    raise RuntimeError("pyttsx3 generó un archivo demasiado pequeño (fallback)")
+
                     synthesis_method = "pyttsx3_tts"
                     quality = "system_voice_quality"
                     synthesis_success = True
@@ -419,16 +784,19 @@ async def synthesize_speech(request: SynthesisRequest):
         if not audio_file.exists() or audio_file.stat().st_size < 1000:
             raise HTTPException(status_code=500, detail="Audio generation failed")
         
+        # Store in cache
+        _cache_set(cache_key, audio_id, audio_file)
+        
         return {
             "audio_id": audio_id,
             "audio_url": f"/api/audio/{audio_id}",
             "text": request.text,
             "voice_model": voice_model["name"],
-            "dialect": voice_model.get("dialect", "central"),
+            "dialect": dialect,
             "synthesis_method": synthesis_method,
             "quality": quality,
             "file_size": audio_file.stat().st_size,
-            "real_audio": synthesis_method == "openslr_hyperrealistic_catalan"
+            "real_audio": synthesis_method in {"openslr_hyperrealistic_catalan", "xtts_v2_neural_tts"}
         }
         
     except Exception as e:
@@ -465,18 +833,20 @@ async def create_chatbot(chatbot: ChatbotCreateRequest):
         "status": "active"
     }
     
-    await db.chatbots.insert_one(chatbot_data)
+    # SQLite insert using helper (handles JSON + embed)
+    sql_db.create_chatbot(chatbot_data)
     return {"message": "Chatbot created successfully", "chatbot": chatbot_data}
 
 @api_router.get("/chatbots")
 async def get_chatbots():
     """Get all chatbots"""
     try:
-        bots = await db.chatbots.find({}).to_list(1000)
-        # Convert ObjectId to string for JSON serialization
-        for bot in bots:
-            if '_id' in bot:
-                del bot['_id']  # Remove MongoDB ObjectId
+        # SQLite query
+        try:
+            from backend.database_sql import db as sql_db
+        except ImportError:
+            from database_sql import db as sql_db
+        bots = sql_db.execute_query("SELECT * FROM chatbots ORDER BY created_at DESC")
         return {"bots": bots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching chatbots: {str(e)}")
@@ -485,20 +855,25 @@ async def get_chatbots():
 async def chat_with_bot(request: ChatRequest):
     """Chat with a chatbot using OpenAI Assistant"""
     
-    bot = await db.chatbots.find_one({"id": request.bot_id})
-    if not bot:
+    # SQLite query
+    bot_rows = sql_db.execute_query("SELECT * FROM chatbots WHERE id = ?", (request.bot_id,))
+    if not bot_rows:
         raise HTTPException(status_code=404, detail="Chatbot not found")
+    bot = bot_rows[0]
+
     
     # Get knowledge base context
     knowledge_context = ""
     if bot.get("knowledge_base_ids"):
-        kb_items = await db.knowledge_base.find(
-            {"id": {"$in": bot["knowledge_base_ids"]}}
-        ).to_list(1000)
-        knowledge_context = "\n\n".join([
-            f"Document: {item['name']}\nContent: {item['content'][:500]}..." 
-            for item in kb_items
-        ])
+        # SQLite query for knowledge base items
+        kb_ids = bot["knowledge_base_ids"].split(",") if isinstance(bot["knowledge_base_ids"], str) else bot["knowledge_base_ids"]
+        if kb_ids and kb_ids != [""]:
+            placeholders = ",".join(["?" for _ in kb_ids])
+            kb_items = sql_db.execute_query(f"SELECT * FROM knowledge_base WHERE id IN ({placeholders})", kb_ids)
+            knowledge_context = "\n\n".join([
+                f"Document: {item['name']}\nContent: {item['content'][:500]}..." 
+                for item in kb_items
+            ])
     
     # Prepare system prompt
     system_content = bot['system_prompt']
@@ -513,12 +888,25 @@ async def chat_with_bot(request: ChatRequest):
     
     messages.append({"role": "user", "content": request.message})
     
-    # Get text response using OpenAI Assistant
+    # Get text response using selected LLM provider
     try:
         api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
         openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'asst_PYZokX0P9FNx4PH8X1VK3FWo')
         
-        if openai_client and bot["llm_provider"] == "openai" and api_key:
+        if bot.get("llm_provider", "openai") == "unsloth" and unsloth_available:
+            # Build Harmony-style messages
+            harmony_messages = [{"role": m["role"], "content": m["content"]} for m in request.conversation_history[-10:]]
+            harmony_messages.append({"role": "user", "content": request.message})
+            try:
+                reply = unsloth_llm.generate(
+                    messages=harmony_messages,
+                    reasoning_effort=bot.get("reasoning_effort", "medium"),
+                    temperature=bot.get("temperature", 0.7),
+                    max_new_tokens=bot.get("max_tokens", 256),
+                )
+            except Exception as e:
+                reply = f"❌ Unsloth backend error: {e}"
+        elif False and openai_client and bot["llm_provider"] == "openai" and api_key:
             # Use OpenAI Assistants API for better responses
             try:
                 if api_key != os.environ.get('OPENAI_API_KEY'):
@@ -623,18 +1011,25 @@ async def create_voicebot(voicebot: VoicebotCreateRequest):
         "status": "active"
     }
     
-    await db.voicebots.insert_one(voicebot_data)
+    # SQLite insert
+    try:
+        from backend.database_sql import db as sql_db
+    except ImportError:
+        from database_sql import db as sql_db
+    
+    sql_db.create_voicebot(voicebot_data)
     return {"message": "Voicebot created successfully", "voicebot": voicebot_data}
 
 @api_router.get("/voicebots")
 async def get_voicebots():
     """Get all voicebots"""
     try:
-        bots = await db.voicebots.find({}).to_list(1000)
-        # Convert ObjectId to string for JSON serialization
-        for bot in bots:
-            if '_id' in bot:
-                del bot['_id']  # Remove MongoDB ObjectId
+        # SQLite query
+        try:
+            from backend.database_sql import db as sql_db
+        except ImportError:
+            from database_sql import db as sql_db
+        bots = sql_db.execute_query("SELECT * FROM voicebots ORDER BY created_at DESC")
         return {"bots": bots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching voicebots: {str(e)}")
@@ -642,102 +1037,126 @@ async def get_voicebots():
 # **CRITICAL FIX: VOICEBOT CHAT ENDPOINT - NO MORE 404!**
 @api_router.post("/voicebots/chat")
 async def voice_chat_with_bot(request: ChatRequest):
-    """ENHANCED Voice Chat with voicebot - Complete STT→LLM→TTS workflow"""
+    """ENHANCED Voice Chat with voicebot - Complete STT→LLM→TTS workflow with Transformers"""
     
-    # Find the voicebot
-    bot = await db.voicebots.find_one({"id": request.bot_id})
-    if not bot:
+    # Find the voicebot in SQLite database
+    try:
+        from backend.database_sql import db as sql_db
+    except ImportError:
+        from database_sql import db as sql_db
+    
+    bot_rows = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (request.bot_id,))
+    if not bot_rows:
         raise HTTPException(status_code=404, detail="Voicebot not found")
     
+    bot = bot_rows[0]
     print(f"🎤 Processing voice chat for bot: {bot['name']}")
     
-    # Get knowledge base context
-    knowledge_context = ""
-    if bot.get("knowledge_base_ids"):
-        kb_items = await db.knowledge_base.find(
-            {"id": {"$in": bot["knowledge_base_ids"]}}
-        ).to_list(1000)
-        knowledge_context = "\n\n".join([
-            f"Document: {item['name']}\nContent: {item['content'][:500]}..." 
-            for item in kb_items
-        ])
-    
-    # Prepare system prompt for VeuPlus Assistant
+    # Prepare system prompt
     system_content = bot.get('system_prompt', 'Ets un assistent de veu intel·ligent que parla català.')
-    if knowledge_context:
-        system_content += f"\n\nContext de coneixement:\n{knowledge_context}"
     
-    # Get text response using dedicated VeuPlus Assistant
+    # Prepare messages for transformers
+    messages = [{"role": "system", "content": system_content}]
+    
+    # Add conversation history
+    for msg in request.conversation_history[-10:]:  # Last 10 messages
+        messages.append(msg)
+    
+    messages.append({"role": "user", "content": request.message})
+    
+    # Get text response using local Transformers service
     try:
-        api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
-        openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'asst_PYZokX0P9FNx4PH8X1VK3FWo')
+        # Use our local transformers service
+        from backend.transformers_service import generate_response
         
-        if openai_client and bot["llm_provider"] == "openai" and api_key:
-            try:
-                if api_key != os.environ.get('OPENAI_API_KEY'):
-                    import openai
-                    bot_client = openai.OpenAI(api_key=api_key)
-                else:
-                    bot_client = openai_client
-                
-                print(f"🤖 Using VeuPlus Assistant for voicebot: {openai_assistant_id}")
-                
-                # Create thread for voice conversation
-                thread = bot_client.beta.threads.create()
-                
-                # Add user message to thread
-                bot_client.beta.threads.messages.create(
-                    thread_id=thread.id,
-                    role="user",
-                    content=f"[VeuPlus Voicebot] {request.message}"
-                )
-                
-                # Run VeuPlus Assistant
-                run = bot_client.beta.threads.runs.create(
-                    thread_id=thread.id,
-                    assistant_id=openai_assistant_id
-                )
-                
-                # Wait for completion
-                import time
-                max_wait = 30
-                wait_time = 0
-                
-                while wait_time < max_wait:
-                    run_status = bot_client.beta.threads.runs.retrieve(
-                        thread_id=thread.id,
-                        run_id=run.id
-                    )
-                    
-                    if run_status.status == 'completed':
-                        messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
-                        reply = messages_response.data[0].content[0].text.value
-                        print(f"✅ VeuPlus Assistant voicebot response: {len(reply)} chars")
-                        break
-                    elif run_status.status == 'failed':
-                        reply = "Ho sento, he tingut un problema tècnic. Pots tornar-ho a provar?"
-                        print(f"❌ VeuPlus Assistant voicebot failed")
-                        break
-                    
-                    time.sleep(1)
-                    wait_time += 1
-                
-                if wait_time >= max_wait:
-                    reply = "Disculpa, estic trigant més del normal. Pots tornar-ho a intentar?"
-                    print(f"❌ VeuPlus Assistant voicebot timeout")
-                    
-            except Exception as e:
-                error_msg = str(e)
-                reply = f"Ho sento, hi ha hagut un error: {error_msg}"
-                print(f"❌ VeuPlus Assistant voicebot error: {error_msg}")
-        else:
-            # Enhanced fallback for voicebot
-            kb_info = f" (connectat a {len(bot.get('knowledge_base_ids', []))} fonts de coneixement)" if bot.get("knowledge_base_ids") else ""
-            reply = f"🎤 Hola! Sóc {bot['name']}, el teu assistent de veu intel·ligent{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
-    
+        model_name = bot.get("model_name", "openai/gpt-oss-20b")
+        print(f"🤖 Using local transformers model: {model_name}")
+        
+        reply = generate_response(
+            messages,
+            model_name=model_name,
+            max_tokens=512,
+            temperature=0.7
+        )
+        
+        print(f"✅ Generated response: {reply[:100]}...")
+        
     except Exception as e:
-        reply = f"Error processant la consulta: {str(e)}"
-        print(f"❌ Voice chat error: {str(e)}")
+        print(f"❌ Transformers service failed: {str(e)}")
+        reply = "Ho sento, el meu sistema de processament de text no està disponible ara mateix."
+    
+    # If transformers fails, try OpenAI as fallback
+    if "Ho sento" in reply:
+        try:
+            api_key = bot.get("api_key") or os.environ.get('OPENAI_API_KEY')
+            openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'asst_PYZokX0P9FNx4PH8X1VK3FWo')
+
+            if openai_client and bot.get("llm_provider") == "openai" and api_key:
+                try:
+                    if api_key != os.environ.get('OPENAI_API_KEY'):
+                        import openai
+                        bot_client = openai.OpenAI(api_key=api_key)
+                    else:
+                        bot_client = openai_client
+
+                    print(f"🤖 Using VeuPlus Assistant for voicebot: {openai_assistant_id}")
+
+                    # Create thread for voice conversation
+                    thread = bot_client.beta.threads.create()
+
+                    # Add user message to thread
+                    bot_client.beta.threads.messages.create(
+                        thread_id=thread.id,
+                        role="user",
+                        content=f"[VeuPlus Voicebot] {request.message}"
+                    )
+
+                    # Run VeuPlus Assistant
+                    run = bot_client.beta.threads.runs.create(
+                        thread_id=thread.id,
+                        assistant_id=openai_assistant_id
+                    )
+
+                    # Wait for completion
+                    import time
+                    max_wait = 30
+                    wait_time = 0
+
+                    while wait_time < max_wait:
+                        run_status = bot_client.beta.threads.runs.retrieve(
+                            thread_id=thread.id,
+                            run_id=run.id
+                        )
+
+                        if run_status.status == 'completed':
+                            messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
+                            reply = messages_response.data[0].content[0].text.value
+                            print(f"✅ VeuPlus Assistant voicebot response: {len(reply)} chars")
+                            break
+                        elif run_status.status == 'failed':
+                            reply = "Ho sento, he tingut un problema tècnic. Pots tornar-ho a provar?"
+                            print(f"❌ VeuPlus Assistant voicebot failed")
+                            break
+
+                        time.sleep(1)
+                        wait_time += 1
+
+                    if wait_time >= max_wait:
+                        reply = "Disculpa, estic trigant més del normal. Pots tornar-ho a intentar?"
+                        print(f"❌ VeuPlus Assistant voicebot timeout")
+
+                except Exception as e:
+                    error_msg = str(e)
+                    reply = f"Ho sento, hi ha hagut un error: {error_msg}"
+                    print(f"❌ VeuPlus Assistant voicebot error: {error_msg}")
+            else:
+                # Enhanced fallback for voicebot
+                kb_info = f" (connectat a {len(bot.get('knowledge_base_ids', []))} fonts de coneixement)" if bot.get("knowledge_base_ids") else ""
+                reply = f"🎤 Hola! Sóc {bot['name']}, el teu assistent de veu intel·ligent{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
+
+        except Exception as e:
+            reply = f"Error processant la consulta: {str(e)}"
+            print(f"❌ Voice chat error: {str(e)}")
     
     # Synthesize voice response using hyperrealistic voice
     try:
@@ -837,7 +1256,8 @@ async def train_voice(
             "fallback_training": True
         }
         
-        await db.voice_models.insert_one(voice_data)
+        # SQLite insert for voice model
+        sql_db.create_voice_model(voice_data)
         return {
             "message": "Voice training completed (simulated)",
             "voice": voice_data,
@@ -849,11 +1269,12 @@ async def train_voice(
 async def get_voices():
     """Get all trained voices"""
     try:
-        voices = await db.voice_models.find({}).to_list(1000)
-        # Convert ObjectId to string for JSON serialization
-        for voice in voices:
-            if '_id' in voice:
-                del voice['_id']  # Remove MongoDB ObjectId
+        # SQLite query
+        try:
+            from backend.database_sql import db as sql_db
+        except ImportError:
+            from database_sql import db as sql_db
+        voices = sql_db.execute_query("SELECT * FROM voice_models ORDER BY created_at DESC")
         return {"voices": voices}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching voices: {str(e)}")
@@ -880,7 +1301,15 @@ async def upload_knowledge_base(
             "created_at": datetime.now().isoformat()
         }
         
-        await db.knowledge_base.insert_one(item_data)
+        # SQLite insert for knowledge base
+        sql_db.create_knowledge_item({
+            "id": item_data["id"],
+            "title": item_data["name"],
+            "content": item_data["content"],
+            "source_type": item_data["file_type"],
+            "file_size": None,
+            "created_at": item_data["created_at"],
+        })
         items.append(item_data)
     
     return {"message": f"Uploaded {len(items)} files", "items": items}
@@ -889,72 +1318,92 @@ async def upload_knowledge_base(
 async def get_knowledge_base():
     """Get all knowledge base items"""
     try:
-        items = await db.knowledge_base.find({}).to_list(1000)
-        # Convert ObjectId to string for JSON serialization
-        for item in items:
-            if '_id' in item:
-                del item['_id']  # Remove MongoDB ObjectId
+        # SQLite query
+        try:
+            from backend.database_sql import db as sql_db
+        except ImportError:
+            from database_sql import db as sql_db
+        items = sql_db.execute_query("SELECT * FROM knowledge_base ORDER BY created_at DESC")
         return {"items": items}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching knowledge base: {str(e)}")
 
 # **CATALAN DATASET DOWNLOAD**
 @api_router.post("/voices/download-catalan-dataset")
-async def download_catalan_dataset():
+async def download_catalan_dataset(
+    dataset_path: Optional[str] = None,
+    dataset_names: Optional[List[str]] = Query(None),
+    max_samples: int = 5,
+):
     """Download and prepare the Catalan dataset for training"""
     try:
         print("🏴󠁥󠁳󠁣󠁴󠁿 Starting Catalan dataset download process...")
         
-        # Try to load the dataset
+        # Try to load from local path or remote datasets
         try:
             from datasets import load_dataset
-            
-            # Download a small sample first to test
-            print("📥 Downloading Catalan OpenSLR dataset sample...")
-            dataset = load_dataset(
-                "projecte-aina/openslr-slr69-ca-trimmed-denoised", 
-                split="train[:10]",  # Only first 10 samples for testing
-                trust_remote_code=True
-            )
-            
-            # Create directory for samples
             import os
+            import soundfile as sf
             sample_dir = "/app/voicebots/training/xtts_catalan_base/data/audio"
             os.makedirs(sample_dir, exist_ok=True)
             
-            # Save some samples
+            targets = dataset_names or CATALAN_DATASETS
             samples_saved = 0
-            for i, sample in enumerate(dataset):
-                if samples_saved >= 5:  # Limit to 5 samples
-                    break
-                    
+
+            # 1) Local path: copy up to max_samples wavs
+            if dataset_path and os.path.exists(dataset_path):
+                print(f"📂 Using local dataset path: {dataset_path}")
+                for idx, (_sr, _dur, wav) in enumerate(_scan_local_wavs(Path(dataset_path))):
+                    if samples_saved >= max_samples:
+                        break
+                    out = os.path.join(sample_dir, f"catalan_local_{idx+1:03d}.wav")
+                    try:
+                        data, sr = sf.read(str(wav))
+                        sf.write(out, data, sr)
+                        samples_saved += 1
+                        print(f"✅ Saved local sample: {wav.name}")
+                    except Exception as e:
+                        print(f"⚠️ Failed local sample {wav}: {e}")
+
+            # 2) Remote datasets
+            async def pull_dataset(name: str):
+                nonlocal samples_saved
                 try:
-                    if hasattr(sample, 'audio') and sample.audio:
-                        # Save audio sample
-                        import soundfile as sf
-                        audio_data = sample.audio
-                        if 'array' in audio_data and 'sampling_rate' in audio_data:
-                            filename = f"catalan_sample_{i+1:03d}.wav"
+                    ds = await asyncio.to_thread(load_dataset, name, split="train[:20]", trust_remote_code=True)
+                    count = 0
+                    for i, sample in enumerate(ds):
+                        if samples_saved >= max_samples:
+                            break
+                        audio = sample.get("audio") if isinstance(sample, dict) else getattr(sample, "audio", None)
+                        if isinstance(audio, dict) and "array" in audio and "sampling_rate" in audio:
+                            filename = f"catalan_{name.split('/')[-1]}_{i+1:03d}.wav"
                             filepath = os.path.join(sample_dir, filename)
-                            sf.write(filepath, audio_data['array'], audio_data['sampling_rate'])
-                            samples_saved += 1
-                            print(f"✅ Saved sample: {filename}")
+                            try:
+                                sf.write(filepath, audio['array'], audio['sampling_rate'])
+                                samples_saved += 1
+                                count += 1
+                                print(f"✅ Saved HF sample: {filename}")
+                            except Exception as e:
+                                print(f"⚠️ Error saving HF sample {i} from {name}: {e}")
+                    return {"dataset": name, "saved": count}
                 except Exception as e:
-                    print(f"⚠️ Error saving sample {i}: {e}")
+                    print(f"⚠️ Failed to load dataset {name}: {e}")
+                    return {"dataset": name, "saved": 0, "error": str(e)}
+
+            results = await asyncio.gather(*[pull_dataset(n) for n in targets])
             
             download_info = {
                 "status": "success",
-                "message": f"Catalan dataset samples downloaded successfully! {samples_saved} samples saved.",
-                "datasets": [
-                    "projecte-aina/openslr-slr69-ca-trimmed-denoised"
-                ],
+                "message": f"Catalan dataset samples prepared: {samples_saved} files.",
+                "datasets": targets,
+                "results": results,
                 "samples_downloaded": samples_saved,
                 "location": sample_dir,
                 "dialects_supported": [d["name"] for d in CATALAN_DIALECTS],
                 "next_steps": "Use these samples for voice training with XTTS v2"
             }
             
-            print(f"✅ Dataset download completed: {samples_saved} samples")
+            print(f"✅ Dataset preparation completed: {samples_saved} samples")
             return download_info
             
         except ImportError:
@@ -1005,10 +1454,14 @@ async def get_veuplus_embed_code(bot_id: str, theme: str = "veuplus", size: str 
     
     # Verify bot exists
     if widget_type == "voicebot":
-        bot = await db.voicebots.find_one({"id": bot_id})
+        # SQLite query for voicebot
+        bot_rows = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (bot_id,))
+        bot = bot_rows[0] if bot_rows else None
         bot_type = "voicebot"
     else:
-        bot = await db.chatbots.find_one({"id": bot_id})
+        # SQLite query for chatbot
+        bot_rows = sql_db.execute_query("SELECT * FROM chatbots WHERE id = ?", (bot_id,))
+        bot = bot_rows[0] if bot_rows else None
         bot_type = "chatbot"
         
     if not bot:
@@ -1209,37 +1662,66 @@ export default VeuPlusWidget;
 @api_router.delete("/chatbots/{bot_id}")
 async def delete_chatbot(bot_id: str):
     """Delete a chatbot"""
-    result = await db.chatbots.delete_one({"id": bot_id})
-    if result.deleted_count:
+    # SQLite delete
+    rows = sql_db.execute_delete("chatbots", "id = ?", (bot_id,))
+    if rows > 0:
         return {"message": "Chatbot deleted successfully"}
     raise HTTPException(status_code=404, detail="Chatbot not found")
 
 @api_router.delete("/voicebots/{bot_id}")
 async def delete_voicebot(bot_id: str):
     """Delete a voicebot"""
-    result = await db.voicebots.delete_one({"id": bot_id})
-    if result.deleted_count:
+    # SQLite delete
+    rows = sql_db.execute_delete("voicebots", "id = ?", (bot_id,))
+    if rows > 0:
         return {"message": "Voicebot deleted successfully"}
     raise HTTPException(status_code=404, detail="Voicebot not found")
 
 @api_router.delete("/voices/{voice_id}")
 async def delete_voice(voice_id: str):
     """Delete a voice model"""
-    result = await db.voice_models.delete_one({"id": voice_id})
-    if result.deleted_count:
+    # SQLite delete
+    rows = sql_db.execute_delete("voice_models", "id = ?", (voice_id,))
+    if rows > 0:
         return {"message": "Voice deleted successfully"}
     raise HTTPException(status_code=404, detail="Voice not found")
 
 @api_router.delete("/knowledge-base/{item_id}")
 async def delete_knowledge_item(item_id: str):
     """Delete a knowledge base item"""
-    result = await db.knowledge_base.delete_one({"id": item_id})
-    if result.deleted_count:
+    # SQLite delete
+    rows = sql_db.execute_delete("knowledge_base", "id = ?", (item_id,))
+    if rows > 0:
         return {"message": "Knowledge item deleted successfully"}
     raise HTTPException(status_code=404, detail="Knowledge item not found")
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# Serve static frontend files
+frontend_path = Path(__file__).parent.parent / "frontend" / "build"
+if frontend_path.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_path / "static")), name="static")
+    
+    @app.get("/")
+    async def serve_frontend():
+        return FileResponse(str(frontend_path / "index.html"))
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend_routes(full_path: str):
+        # Serve frontend for all non-API routes
+        if not full_path.startswith("api/") and not full_path.startswith("docs") and not full_path.startswith("redoc"):
+            return FileResponse(str(frontend_path / "index.html"))
+        raise HTTPException(status_code=404, detail="Not found")
+else:
+    @app.get("/")
+    async def root():
+        return {
+            "message": "VeuPlus Backend está funcionando",
+            "docs": "/docs",
+            "health": "/api/health",
+            "frontend": "El frontend no está construido. Ejecuta 'npm run build' en el directorio frontend."
+        }
 
 # CORS Configuration
 app.add_middleware(
@@ -1257,9 +1739,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# Database cleanup is handled automatically by SQLite
+# No manual cleanup needed for SQLite connections
 
 if __name__ == "__main__":
     import uvicorn

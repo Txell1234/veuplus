@@ -23,3 +23,16 @@ bash train.sh
 ```
 
 Once trained, integrate the model into VeuPlus using the inference API or embedding component.
+
+## Offline dataset caching
+
+To avoid repeated downloads, cache the Catalan datasets locally before training:
+
+```python
+from datasets import load_dataset
+load_dataset("projecte-aina/openslr-slr69-ca-trimmed-denoised")
+# Optionally also:
+load_dataset("projecte-aina/4catac")
+```
+
+The datasets will be stored in the Hugging Face cache (respects `HF_DATASETS_CACHE`) and can be reused offline.

@@ -11,6 +11,80 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Light/Dark theme base */
+:root {
+  color-scheme: light dark;
+}
+
+.light {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+}
+
+.dark {
+  --bg: #0b1220;
+  --card: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--bg); color: var(--text); }
+
+/* Global theme mappings so existing Tailwind classes respetan el tema */
+.dark .bg-white { background-color: var(--card) !important; }
+.dark .bg-gray-50, .dark .bg-gray-100 { background-color: var(--bg) !important; }
+.dark .text-gray-900, .dark .text-black { color: var(--text) !important; }
+.dark .text-gray-600, .dark .text-gray-500 { color: var(--muted) !important; }
+.dark .border-gray-200, .dark .border-gray-300 { border-color: rgba(148,163,184,0.25) !important; }
+.dark .shadow, .dark .shadow-md, .dark .shadow-lg { box-shadow: 0 8px 30px rgba(0,0,0,0.35) !important; }
+
+/* Cards & panels */
+.card {
+  background: var(--card);
+  border: 1px solid rgba(148,163,184,0.15);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(2,6,23,0.08);
+}
+.glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(148,163,184,0.15);
+  border-radius: 16px;
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 16px;
+  transition: transform .1s ease, box-shadow .2s ease;
+}
+.btn-primary:hover { box-shadow: 0 10px 22px rgba(99,102,241,0.35); transform: translateY(-1px); }
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(148,163,184,0.35);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+
+/* Inputs */
+.input, .select {
+  background: var(--card);
+  border: 1px solid rgba(148,163,184,0.25);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.input:focus, .select:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.25); }
+
+/* Sliders */
+.range { accent-color: #8b5cf6; }
+
 code {
     font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
         monospace;

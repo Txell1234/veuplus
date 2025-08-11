@@ -1,0 +1,35 @@
+{
+  "meta": { "dialect": "central", "description": "Reglas simplificadas SEGRE para catalán central (demo)" },
+  "char_map": {
+    "a": "a", "b": "b", "c": "k", "ç": "s", "d": "d", "e": "e", "é": "e", "è": "E",
+    "f": "f", "g": "g", "h": "", "i": "i", "í": "i", "ï": "i", "j": "Z", "k": "k",
+    "l": "l", "m": "m", "n": "n", "ñ": "ɲ", "o": "o", "ó": "o", "ò": "O", "p": "p",
+    "q": "k", "r": "r", "s": "s", "t": "t", "u": "u", "ú": "u", "ü": "u", "v": "b",
+    "w": "w", "x": "ks", "y": "i", "z": "z"
+  },
+  "g2a": [
+    { "pattern": "ll", "replace": "ʎ" },
+    { "pattern": "ny", "replace": "ɲ" },
+    { "pattern": "ig(?!\\w)", "replace": "tʃ" },
+    { "pattern": "tx", "replace": "tʃ" },
+    { "pattern": "tg", "replace": "dʒ" },
+    { "pattern": "gi([eéií])", "replace": "ʒ$1" },
+    { "pattern": "ge([eéií])", "replace": "ʒ$1" },
+    { "pattern": "ci([eéií])", "replace": "s$1" },
+    { "pattern": "ce([eéií])", "replace": "s$1" },
+    { "pattern": "qu([eéií])", "replace": "k$1" },
+    { "pattern": "gu([eéií])", "replace": "g$1" },
+    { "pattern": "[à]", "replace": "a" },
+    { "pattern": "[ï]", "replace": "i" },
+    { "pattern": "[ü]", "replace": "u" }
+  ],
+  "a2a": [
+    { "pattern": "s b", "replace": "z b" },
+    { "pattern": "s d", "replace": "z d" },
+    { "pattern": "s g", "replace": "z g" }
+  ],
+  "redistribution": [
+    { "pattern": "r #", "replace": "r" }
+  ]
+}
+

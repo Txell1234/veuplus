@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  veuplus:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+      args:
+        - FRONTEND_ENV=REACT_APP_BACKEND_URL=http://localhost:8080
+    image: veuplus:gpu
+    container_name: veuplus_gpu
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WARMUP_TTS=${WARMUP_TTS:-0}
+      - PRELOAD_AINA_DATASET=${PRELOAD_AINA_DATASET:-0}
+      - CATALAN_DATASET_PATH=/data/catalan
+    ports:
+      - "8080:8080"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+      - torch_cache:/root/.cache/torch
+      - data:/data
+      - models:/backend/models
+      - audio:/backend/temp_audio
+      - db:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    runtime: nvidia
+    restart: unless-stopped
+
+volumes:
+  hf_cache:
+  torch_cache:
+  data:
+  models:
+  audio:
+  db:
+
+
