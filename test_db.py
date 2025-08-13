@@ -29,5 +29,11 @@ bots = db.get_chatbots()
 print(f'✅ Chatbots creados: {len(bots)}')
 print(f'Primer bot: {bots[0]["name"]}')
 
-os.unlink(temp_db)
+try:
+    # Prefer eliminar la ruta real de la DB usada por el motor
+    real_db = getattr(db, 'db_path', temp_db)
+    if real_db and os.path.exists(real_db):
+        os.unlink(real_db)
+except Exception:
+    pass
 print('🎉 Test de database PASADO')
