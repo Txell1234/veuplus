@@ -213,85 +213,17 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
-# Voice Import API (model.zip or direct files)
-from fastapi import UploadFile
-from typing import Optional
-import zipfile
-import tempfile
+ 
+# Voices API router (modular extractions)
 try:
-    from backend.storage import store_model_artifact, store_audio_sample
-except ImportError:
-    from storage import store_model_artifact, store_audio_sample
+    from backend.api.voices import router as voices_router
+    app.include_router(voices_router)
+    logger.info("Voices API router enabled (/api/voices)")
+except Exception as e:
+    logger.warning(f"Voices API router not available: {e}")
 
 
-@api_router.post("/voices/import", response_model=VoiceImportResponse)
-async def import_voice_model(file: UploadFile, name: str = "", language: str = "ca", dialect: str = "central"):
-    """Import a voice model package (zip) with final_model.json, training_config.json, sample.wav, metadata.json"""
-    try:
-        voice_id = str(uuid4())
-        data = await file.read()
-        if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-            raise HTTPException(status_code=413, detail=f"File too large (> {MAX_UPLOAD_SIZE_MB} MB)")
-
-        # Unzip safely and store artifacts (avoid path traversal)
-        with tempfile.TemporaryDirectory() as td:
-            temp_zip = Path(td) / "model.zip"
-            with open(temp_zip, "wb") as f:
-                f.write(data)
-            with zipfile.ZipFile(temp_zip, 'r') as zf:
-                safe_members = []
-                for m in zf.namelist():
-                    p = Path(m)
-                    if p.is_absolute() or ".." in p.parts:
-                        continue
-                    safe_members.append(m)
-                members = set(safe_members)
-                model_bytes = zf.read("final_model.json") if "final_model.json" in members else None
-                cfg_bytes = zf.read("training_config.json") if "training_config.json" in members else None
-                sample_bytes = None
-                for cand in ["sample.wav", "sample_audio.wav", "test_voice.wav"]:
-                    if cand in members:
-                        sample_bytes = zf.read(cand)
-                        break
-
-        model_url = None
-        sample_url = None
-
-        if model_bytes:
-            _, model_url = store_model_artifact(voice_id, "final_model.json", model_bytes, MODELS_BASE_DIR)
-        if cfg_bytes:
-            store_model_artifact(voice_id, "training_config.json", cfg_bytes, MODELS_BASE_DIR)
-        if sample_bytes:
-            _, sample_url = store_audio_sample(voice_id, "sample.wav", sample_bytes, MODELS_BASE_DIR)
-
-        # Register in DB (SQLite for local)
-        try:
-            from backend.database_sql import db as sql_db
-        except Exception:
-            from database_sql import db as sql_db
-
-        sql_db.create_voice_model({
-            "id": voice_id,
-            "name": name or f"Imported Voice {voice_id[:8]}",
-            "language": language,
-            "dialect": dialect,
-            "status": "ready",
-            "progress": 100,
-            "model_path": str(MODELS_BASE_DIR / f"models/{voice_id}"),
-            "sample_audio": sample_url or str(MODELS_BASE_DIR / f"voice_models/{voice_id}/sample.wav"),
-            "quality": "imported",
-            "real_model": True,
-            "config": {"source": "import"},
-        })
-
-        return VoiceImportResponse(voice_id=voice_id, message="Voice model imported", sample_url=sample_url, model_url=model_url)
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid ZIP file")
-    except KeyError as e:
-        raise HTTPException(status_code=400, detail=f"Missing required file in ZIP: {e}")
-    except Exception as e:
-        logger.error(f"Import voice model failed: {e}")
-        raise HTTPException(status_code=400, detail="Import failed")
+# Voices endpoints moved to backend/api/voices.py
 
 
 # OpenAI setup
