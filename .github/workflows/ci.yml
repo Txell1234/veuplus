@@ -24,9 +24,20 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           if [ -f requirements-ci.txt ]; then pip install -r requirements-ci.txt; else pip install -r requirements.txt; fi
 
+      - name: Pre-test diagnostics
+        run: |
+          python -V
+          pip list
+          ls -la
+          echo "Workspace root:" $(pwd)
+          echo "Collecting tests..."
+          pytest --version
+          pytest --collect-only -q || true
+
       - name: Run tests
         env:
           DISABLE_TRANSFORMERS_INIT: '1'
         run: |
-          pytest -q
+          set -e
+          pytest -q || (echo "::group::Verbose pytest output" && pytest -vv && echo "::endgroup::" && exit 1)
 
