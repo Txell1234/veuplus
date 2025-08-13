@@ -8,7 +8,18 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-import torch
+# Make torch optional for CI/light environments
+try:
+    import torch  # type: ignore
+except Exception:  # pragma: no cover - CI lightweight stub
+    class _TorchStub:  # minimal API used in this module
+        class cuda:  # type: ignore
+            @staticmethod
+            def is_available() -> bool:
+                return False
+        float16 = None
+        float32 = None
+    torch = _TorchStub()  # type: ignore
 import json
 import httpx
 from transformers import (
@@ -65,8 +76,7 @@ except Exception:
     LOAD_IN_4BIT = os.environ.get("TRANSFORMERS_LOAD_IN_4BIT", "0") == "1"
     VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000")
 MAX_LENGTH = int(os.environ.get("TRANSFORMERS_MAX_LENGTH", "1000"))
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda" if getattr(torch, "cuda", None) and torch.cuda.is_available() else "cpu"
 
 # API Router
 transformers_router = APIRouter(prefix="/api/transformers", tags=["Transformers Service"])
