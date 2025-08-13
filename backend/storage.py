@@ -90,29 +90,74 @@ class StorageManager:
 # Global storage manager instance
 storage = StorageManager()
 
-# Helper functions for backward compatibility
-def store_model_artifact(model_id: str, artifact_path: Union[str, Path], artifact_type: str = "model") -> str:
-    """Store a model artifact (model file, checkpoint, etc.)"""
+# Helper functions: support both old path-based API and new bytes-based API used by server
+def store_model_artifact(
+    model_id: str,
+    filename_or_path: Union[str, Path],
+    data_bytes: Optional[bytes] = None,
+    base_dir: Optional[Path] = None,
+    artifact_type: str = "model",
+) -> Union[str, tuple[str, Optional[str]]]:
+    """
+    Store a model artifact.
+    - Legacy mode (path-based): store_model_artifact(model_id, path, artifact_type="model") -> path
+    - Bytes mode: store_model_artifact(model_id, filename, data_bytes, base_dir) -> (path, url|None)
+    """
     try:
-        artifact_path = Path(artifact_path)
+        # Bytes mode
+        if data_bytes is not None:
+            filename = str(filename_or_path)
+            root = base_dir if base_dir is not None else BASE_DIR
+            target_dir = Path(root) / "models" / model_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / filename
+            with open(target_path, "wb") as f:
+                f.write(data_bytes)
+            # URL opcional (no hay static mapping dedicado para models); devolvemos None
+            return str(target_path), None
+
+        # Legacy path-based mode
+        artifact_path = Path(filename_or_path)
         file_extension = artifact_path.suffix
         target_key = f"{model_id}/{artifact_type}{file_extension}"
-        
-        return storage.store_file(artifact_path, target_key)
+        stored = storage.store_file(artifact_path, target_key)
+        return stored
     except Exception as e:
-        logger.error(f"Failed to store model artifact {artifact_path}: {e}")
+        logger.error(f"Failed to store model artifact {filename_or_path}: {e}")
         raise
 
-def store_audio_sample(model_id: str, audio_path: Union[str, Path], sample_name: str = "sample") -> str:
-    """Store an audio sample for a voice model"""
+def store_audio_sample(
+    model_id: str,
+    filename_or_path: Union[str, Path],
+    data_bytes: Optional[bytes] = None,
+    base_dir: Optional[Path] = None,
+    sample_name: str = "sample",
+) -> Union[str, tuple[str, Optional[str]]]:
+    """
+    Store an audio sample for a voice model.
+    - Legacy mode (path-based): store_audio_sample(model_id, path, sample_name="sample") -> path
+    - Bytes mode: store_audio_sample(model_id, filename, data_bytes, base_dir) -> (path, url|None)
+    """
     try:
-        audio_path = Path(audio_path)
+        if data_bytes is not None:
+            filename = str(filename_or_path)
+            root = base_dir if base_dir is not None else BASE_DIR
+            target_dir = Path(root) / "voice_models" / model_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / filename
+            with open(target_path, "wb") as f:
+                f.write(data_bytes)
+            # URL opcional; sin mapping estático garantizado
+            return str(target_path), None
+
+        # Legacy path-based mode
+        audio_path = Path(filename_or_path)
         file_extension = audio_path.suffix
         target_key = f"{model_id}/{sample_name}{file_extension}"
-        
-        return storage.store_file(audio_path, target_key)
+        stored = storage.store_file(audio_path, target_key)
+        return stored
     except Exception as e:
-        logger.error(f"Failed to store audio sample {audio_path}: {e}")
+        logger.error(f"Failed to store audio sample {filename_or_path}: {e}")
         raise
 
 def get_model_path(model_id: str) -> Optional[str]:

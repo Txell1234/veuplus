@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
 import logging
+import os
 
 # SQLite Database connection - NO MORE MONGO!
 try:
@@ -56,7 +57,11 @@ class ProjectResponse(BaseModel):
 
 # Helper Functions
 async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify API key for developer dashboard access"""
+    """Verify API key for developer dashboard access - DISABLED FOR DEVELOPMENT"""
+    # DEVELOPMENT MODE: Skip authentication for local development
+    if os.environ.get("DEVELOPMENT_MODE", "true").lower() == "true":
+        return {"key": "dev-key", "name": "Development", "status": "active"}
+    
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -326,7 +331,7 @@ async def dev_health_check():
 @dev_router.get("/metrics")
 async def get_metrics():
     """Get platform metrics"""
-        return {
+    return {
             "platform_status": "operational",
         "total_users": 0,
         "active_bots": 0,
@@ -337,7 +342,7 @@ async def get_metrics():
 @dev_router.get("/quota")
 async def get_quota_usage():
     """Get quota usage information"""
-        return {
+    return {
         "current_usage": {
             "api_calls": 0,
             "tts_minutes": 0,

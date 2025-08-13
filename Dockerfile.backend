@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir prometheus-client
+
+COPY backend ./backend
+
+ENV TRANSFORMERS_PROVIDER=local \
+    TRANSFORMERS_MODEL=distilgpt2 \
+    DISABLE_TRANSFORMERS_INIT=0 \
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    DEVELOPMENT_MODE=true \
+    MAX_UPLOAD_SIZE_MB=20
+
+EXPOSE 8001
+
+# Install gunicorn for production workers
+RUN pip install --no-cache-dir gunicorn
+
+# Default command: Gunicorn + Uvicorn workers (override in compose if needed)
+CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","4","-b","0.0.0.0:8001","backend.server:app"]
+

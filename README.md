@@ -1,6 +1,8 @@
-# VeuPlus Platform - Dev/Run Guide
+# VeuPlus Platform
 
-## Run locally (Docker)
+Plataforma completa para TTS catalán, chatbots/voicebots y entrenamiento de voces. Backend en FastAPI (SQLite) y frontend en React. Soporta LLM local (gpt‑oss‑20b via vLLM) y OpenAI.
+
+## Ejecutar (Docker)
 
 ```bash
 docker compose up --build -d
@@ -23,7 +25,95 @@ bash voicebots/training/xtts_catalan_base/train.sh
 ```
 Configurable con variables `PYTHON`, `CONFIG_PATH`, `OUT_PATH`.
 
-## Backend opcional: Unsloth gpt-oss
+### Dataset multi-locutor para catalán (Projecte AINA)
+
+Este proyecto puede utilizar, de forma optativa, el corpus `projecte-aina/matxa-tts-cat-multispeaker` publicado en Hugging Face para enriquecer las voces catalanas (multi‑locutor). No se redistribuye el dataset; se accede dinámicamente desde Hugging Face mediante la librería `datasets` y se generan manifiestos locales para entrenamiento/validación.
+
+- Dataset: `https://huggingface.co/projecte-aina/matxa-tts-cat-multispeaker`
+- Uso: únicamente para entrenamiento/validación dentro de tu entorno (no se copia en el repositorio)
+- Atribución: Projecte AINA / Generalitat de Catalunya (consulte la tarjeta del dataset para licencia y condiciones exactas)
+
+En el pipeline (`backend/voice_training_pipeline.py`) se generan `manifest.csv` y `speakers.json` durante el preprocesado, respetando la licencia del dataset al no realizar ninguna redistribución del contenido original.
+
+## LLMs soportados
+
+### a) gpt‑oss‑20b (local) con vLLM (recomendado)
+
+1) Iniciar todo con un clic en Windows:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+./start_veuplus_vllm.ps1
+```
+
+Esto levanta vLLM (`openai/gpt-oss-20b`) en `http://localhost:8000`, el backend en `http://localhost:8001` y el frontend en `http://localhost:3000`.
+
+2) Variables relevantes (ya las fija el script):
+- `TRANSFORMERS_PROVIDER=vllm`
+- `VLLM_BASE_URL=http://localhost:8000`
+- `TRANSFORMERS_MODEL=openai/gpt-oss-20b`
+
+3) Streaming token‑a‑token: endpoint `/api/transformers/stream` (SSE). El modal de test en UI permite “Stream”.
+
+### b) OpenAI (API)
+
+1) Define la clave y ejecuta el script:
+
+```powershell
+$env:OPENAI_API_KEY = "sk-..."
+./start_veuplus_openai.ps1
+```
+
+2) En la UI, crea el chatbot con `Proveedor LLM: OpenAI`.
+
+### c) HF local (sin vLLM)
+
+No recomendado en Windows (bitsandbytes). Usar WSL2/Linux. Variables:
+
+```powershell
+$env:TRANSFORMERS_PROVIDER = "local"
+$env:TRANSFORMERS_MODEL = "openai/gpt-oss-20b"
+# Opcional GPU Linux/WSL2
+# $env:TRANSFORMERS_LOAD_IN_4BIT = "1"
+```
+
+## Configuración (backend/config.py)
+
+- `MAX_CACHE_ITEMS` (por defecto 100)
+- `CATALAN_DATASETS` (lista separada por comas)
+- `TRANSFORMERS_MODEL`, `TRANSFORMERS_PROVIDER`, `TRANSFORMERS_LOAD_IN_4BIT`, `VLLM_BASE_URL`
+- `API_CORS_ORIGINS` (por defecto `*`)
+- `MAX_UPLOAD_SIZE_MB` (límite en `/voices/import`)
+- `OPENAI_TIMEOUT_SEC`, `TTS_TIMEOUT_SEC`
+
+## Endpoints principales
+
+- Salud: `GET /api/health`
+- Chat LLM: `POST /api/transformers/chat`
+- Streaming: `POST /api/transformers/stream` (SSE)
+- Chatbots: `POST/GET /api/chatbots`, `POST /api/chatbots/chat`
+- Voicebots: `POST/GET /api/voicebots`, `POST /api/voicebots/chat`
+- TTS: `POST /api/synthesis` y `GET /api/audio/{id}`
+- Voces: `GET/DELETE /api/voices`, `POST /api/voices/import`, `POST /api/voices/train`
+- Knowledge: `POST/GET/DELETE /api/knowledge-base`
+- Entrenamiento: `POST /api/training/start`, `GET /api/training/jobs`, `WS /api/training/ws/{job_id}`
+
+## Seguridad y rendimiento
+
+- ZIP seguro en `/voices/import` (protección contra path traversal)
+- SQLite en hilos (`asyncio.to_thread`) para no bloquear el event loop
+- CORS configurable por env
+
+## UI/UX
+
+- i18n básico (ca/es) con `react-i18next` (archivo `src/i18n.js`)
+- Errores de API visuales (alert) en acciones clave
+- Streaming token‑a‑token en el modal de test del chatbot
+
+## Tests
+
+- Carpeta `tests/` (placeholder inicial). Recomendado añadir casos: health, chatbots CRUD, chat transformers, TTS y knowledge‑base.
+
 
 Para habilitar un proveedor LLM abierto (Unsloth):
 
@@ -54,4 +144,90 @@ Consulta los modelos GGUF en:
 Notas:
 - En `llama.cpp`, usa `--ctx-size 16384`, `--temp 1.0`, `--top-p 1.0`, `--top-k 0`.
 - Para GPU, ajustar `--n-gpu-layers` y opciones de offloading según VRAM.
+
+## Notas para fine‑tuning con GPT‑OSS y estado del TTS
+
+- Objetivo: mantener separado el pipeline de LLM (GPT‑OSS) del pipeline de TTS. El backend ya soporta LLMs abiertos (vLLM/Unsloth/local), y la integración TTS en catalán se ha preparado para trabajo multi‑locutor sin redistribuir datasets.
+- Estado actual (TTS):
+  - TTS/ASR en `api/tts.py` y `api/asr.py` son placeholders funcionales (contrato estable) para no bloquear el desarrollo.
+  - El pipeline de entrenamiento en `backend/voice_training_pipeline.py` genera `manifest.csv` y `speakers.json` usando datasets de Hugging Face (incl. `projecte-aina/matxa-tts-cat-multispeaker`) cuando el idioma es catalán.
+  - Endpoint auxiliar: `GET /api/tts/voices` agrega locutores detectados a partir de `speakers.json`.
+- Licencia/atribución de datos:
+  - Los datasets (p. ej. Projecte AINA) no se incluyen en este repositorio; se consumen dinámicamente desde Hugging Face mediante `datasets`, respetando sus licencias. Revisa la card del dataset antes de uso en producción.
+
+### Activar entrenamiento TTS real (Coqui/XTTS) más adelante
+
+Para pasar de modo simulado a entrenamiento real de TTS multi‑locutor usando los manifests generados:
+
+1) Preparar entorno
+   - Instalar dependencias de Coqui/XTTS y utilidades de audio (PyTorch con CUDA, ffmpeg, soundfile, librosa, etc.).
+   - Confirmar GPU con drivers y CUDA disponibles.
+
+2) Script/wrapper de entrenamiento
+   - Ya existe un placeholder: `scripts/train_coqui_xtts.py` que imprime `epoch=X/Y loss=Z` (parseable por el pipeline). Sustituir su lógica por la llamada real a Coqui/XTTS.
+   - Consume `preprocessed_data/<job_id>/audio/manifest.csv` y parámetros: `--out`, `--epochs`, `--batch-size`, `--lr`.
+
+3) Interruptor de modo
+   - Ya incorporado: `trainer` en `TrainingRequest` admite `simulate` o `coqui_xtts`.
+   - Si `trainer == "coqui_xtts"`, el pipeline lanza el script y parsea progreso para actualizar el WebSocket.
+
+4) Inferencia multi‑locutor
+   - Extender el motor TTS de producción para aceptar `speaker_id` (ya expuesto en la request de `/api/tts/synthesize`) o una referencia de audio, usando embeddings precalculados cuando sea posible.
+
+5) Validación
+   - Añadir pruebas que aseguren la presencia de `manifest.csv`, la agregación de `speakers.json` y la disponibilidad de `GET /api/tts/voices`.
+
+Con este enfoque, el fine‑tuning de GPT‑OSS y el entrenamiento TTS avanzan en paralelo, con responsabilidades separadas y un contrato de datos claro basado en `manifest.csv`.
+
+## Ejemplos de uso de la API (cURL)
+
+Base URL por defecto: `http://localhost:8001`
+
+Notas:
+- Si configuraste `API_KEY`, añade la cabecera `-H "x-api-key: $API_KEY"` a las peticiones.
+- Cambia el contenido según tus necesidades.
+
+### 1) Iniciar entrenamiento (trainer=coqui_xtts)
+
+```bash
+curl -X POST "http://localhost:8001/api/training/start" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ca_multispeaker_v1",
+    "language": "ca",
+    "dialect": "central",
+    "use_catalan_dataset": true,
+    "dataset_names": ["projecte-aina/matxa-tts-cat-multispeaker"],
+    "training_config": {
+      "num_epochs": 50,
+      "batch_size": 4,
+      "learning_rate": 0.0001
+    },
+    "trainer": "coqui_xtts"
+  }'
+```
+
+Para monitorizar progreso en tiempo real:
+- WebSocket: `ws://localhost:8001/api/training/ws/<job_id>`
+- Listado jobs: `GET http://localhost:8001/api/training/jobs`
+
+### 2) Listar voces (multi‑locutor)
+
+```bash
+curl "http://localhost:8001/api/tts/voices"
+```
+
+### 3) Síntesis de TTS con `speaker_id`
+
+```bash
+curl -X POST "http://localhost:8001/api/tts/synthesize" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Bon dia, això és una prova.",
+    "language": "ca",
+    "speaker_id": "SPEAKER_ID"
+  }'
+```
+
+`SPEAKER_ID` se obtiene de `GET /api/tts/voices`. La respuesta incluye `audio_base64` (WAV) y metadatos.
 

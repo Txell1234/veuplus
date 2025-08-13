@@ -93,6 +93,16 @@ class VeuPlusDatabase:
                     sip_number TEXT
                 )
             """)
+
+            # Lightweight migrations for existing databases
+            # Ensure "assistant_id" column exists in chatbots table to satisfy tests and server logic
+            try:
+                cursor.execute("PRAGMA table_info(chatbots)")
+                cols = {row[1] for row in cursor.fetchall()}  # set of column names
+                if "assistant_id" not in cols:
+                    cursor.execute("ALTER TABLE chatbots ADD COLUMN assistant_id TEXT")
+            except Exception as _e:
+                logger.warning(f"Could not ensure assistant_id column on chatbots: {_e}")
             
             # Voicebots Table
             cursor.execute("""

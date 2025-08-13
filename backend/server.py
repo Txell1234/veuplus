@@ -1,14 +1,17 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi import APIRouter
+from fastapi import Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Iterable
 import uuid
 import os
 import logging
 from pathlib import Path
+import sys
+import os
 from datetime import datetime
 import subprocess
 import shutil
@@ -38,6 +41,29 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 api_router = APIRouter(prefix="/api")
+
+# Logger
+logger = logging.getLogger("veuplus.server")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    # JSON-like format for easier log aggregation
+    formatter = logging.Formatter('{"ts": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "msg": %(message)s}')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Simple API key middleware (optional, opt-in via env API_KEY)
+from fastapi import Header
+API_KEY = os.environ.get("API_KEY", "")
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    # Enforce API key only for /api/* if API_KEY is set
+    if API_KEY and str(request.url.path).startswith("/api/"):
+        header_key = request.headers.get("x-api-key")
+        if (header_key or "") != API_KEY:
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+    return await call_next(request)
 # Voice import DTOs
 class VoiceImportResponse(BaseModel):
     voice_id: str
@@ -88,48 +114,95 @@ try:
     sys.path.append('/app/backend')
     from developer_dashboard import dev_router
     app.include_router(dev_router)
-    print("✅ Developer Dashboard (SQLite) enabled")
+    logger.info("Developer Dashboard (SQLite) enabled")
 except ImportError as e:
-    print(f"⚠️ Developer Dashboard not available: {str(e)}")
+    logger.warning(f"Developer Dashboard not available: {str(e)}")
 
 # Import real voice training system
 try:
     from real_voice_training import voice_trainer
-    print("✅ Real Voice Training System enabled")
+    logger.info("Real Voice Training System enabled")
 except ImportError as e:
-    print(f"⚠️ Real Voice Training not available: {str(e)}")
+    logger.warning(f"Real Voice Training not available: {str(e)}")
 
 # Import call center system
 try:
     from call_center_system import call_center_router
     app.include_router(call_center_router)
-    print("✅ Call Center AI System enabled")
+    logger.info("Call Center AI System enabled")
 except ImportError as e:
-    print(f"⚠️ Call Center System not available: {str(e)}")
+    logger.warning(f"Call Center System not available: {str(e)}")
 
 # Import training pipeline (XTTS v2)
 try:
     from voice_training_pipeline import training_router
     app.include_router(training_router)
-    print("✅ Voice Training API enabled (/api/training)")
+    logger.info("Voice Training API enabled (/api/training)")
 except ImportError as e:
-    print(f"⚠️ Voice Training API not available: {str(e)}")
+    logger.warning(f"Voice Training API not available: {str(e)}")
 
-# Import transformers service
+# Ensure local package paths (so that `api.*` resolves when running locally/tests)
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+except Exception:
+    pass
+
+# Import transformers service (after ensuring new pipeline package is importable)
 try:
     from transformers_service import transformers_router
     app.include_router(transformers_router)
-    print("✅ Transformers Service enabled")
+    logger.info("Transformers Service enabled")
 except ImportError as e:
-    print(f"⚠️ Transformers Service not available: {str(e)}")
+    logger.warning(f"Transformers Service not available: {str(e)}")
+
+# Mount new chat API router (SSE streaming)
+_chat_ok = False
+for mod in ("api.chat", "backend.api.chat"):
+    try:
+        chat_router = __import__(mod, fromlist=["router"]).router  # type: ignore
+        app.include_router(chat_router)
+        logger.info("Chat API router enabled (/api/chat)")
+        _chat_ok = True
+        break
+    except Exception:
+        continue
+if not _chat_ok:
+    logger.warning("Chat API router not available")
+
+# Mount TTS/ASR routers (placeholders if engines not installed)
+_tts_ok = False
+for mod in ("api.tts", "backend.api.tts"):
+    try:
+        tts_router = __import__(mod, fromlist=["router"]).router  # type: ignore
+        app.include_router(tts_router)
+        logger.info("TTS API router enabled (/api/tts)")
+        _tts_ok = True
+        break
+    except Exception:
+        continue
+if not _tts_ok:
+    logger.warning("TTS API router not available")
+
+_asr_ok = False
+for mod in ("api.asr", "backend.api.asr"):
+    try:
+        asr_router2 = __import__(mod, fromlist=["router"]).router  # type: ignore
+        app.include_router(asr_router2)
+        logger.info("ASR API router enabled (/api/asr)")
+        _asr_ok = True
+        break
+    except Exception:
+        continue
+if not _asr_ok:
+    logger.warning("ASR API router not available")
 
 # Import ASR service (Whisper)
 try:
     from asr_service import asr_router
     app.include_router(asr_router)
-    print("✅ ASR Service (Whisper) enabled")
+    logger.info("ASR Service (Whisper) enabled")
 except ImportError as e:
-    print(f"⚠️ ASR Service not available: {str(e)}")
+    logger.warning(f"ASR Service not available: {str(e)}")
 
 # Create directories
 TEMP_AUDIO_DIR = Path("backend/temp_audio")
@@ -144,6 +217,7 @@ app.mount("/static", StaticFiles(directory="backend/static"), name="static")
 from fastapi import UploadFile
 from typing import Optional
 import zipfile
+import tempfile
 try:
     from backend.storage import store_model_artifact, store_audio_sample
 except ImportError:
@@ -156,14 +230,22 @@ async def import_voice_model(file: UploadFile, name: str = "", language: str = "
     try:
         voice_id = str(uuid4())
         data = await file.read()
+        if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"File too large (> {MAX_UPLOAD_SIZE_MB} MB)")
 
-        # Unzip in memory and store artifacts
+        # Unzip safely and store artifacts (avoid path traversal)
         with tempfile.TemporaryDirectory() as td:
             temp_zip = Path(td) / "model.zip"
             with open(temp_zip, "wb") as f:
                 f.write(data)
             with zipfile.ZipFile(temp_zip, 'r') as zf:
-                members = zf.namelist()
+                safe_members = []
+                for m in zf.namelist():
+                    p = Path(m)
+                    if p.is_absolute() or ".." in p.parts:
+                        continue
+                    safe_members.append(m)
+                members = set(safe_members)
                 model_bytes = zf.read("final_model.json") if "final_model.json" in members else None
                 cfg_bytes = zf.read("training_config.json") if "training_config.json" in members else None
                 sample_bytes = None
@@ -203,8 +285,13 @@ async def import_voice_model(file: UploadFile, name: str = "", language: str = "
         })
 
         return VoiceImportResponse(voice_id=voice_id, message="Voice model imported", sample_url=sample_url, model_url=model_url)
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Missing required file in ZIP: {e}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Import voice model failed: {e}")
+        raise HTTPException(status_code=400, detail="Import failed")
 
 
 # OpenAI setup
@@ -218,11 +305,11 @@ try:
     if api_key:
         openai_client = openai.OpenAI(api_key=api_key)
         openai_available = True
-        print("✅ OpenAI client initialized successfully")
+        logger.info("OpenAI client initialized successfully")
     else:
-        print("⚠️ OpenAI API key not found")
+        logger.warning("OpenAI API key not found")
 except ImportError:
-    print("⚠️ OpenAI library not available")
+    logger.warning("OpenAI library not available")
 
 # Optional: Unsloth LLM backend
 try:
@@ -230,9 +317,9 @@ try:
     unsloth_llm.load_model()
     unsloth_available = unsloth_llm.is_available()
     if unsloth_available:
-        print("✅ Unsloth LLM backend available")
+        logger.info("Unsloth LLM backend available")
 except Exception as _e:
-    print(f"⚠️ Unsloth backend not available: {_e}")
+    logger.warning(f"Unsloth backend not available: {_e}")
 
 # Optional: Coqui TTS (XTTS v2) lazy loader
 xtts_model = None
@@ -242,9 +329,9 @@ try:
     from TTS.api import TTS as _TTSProbe  # probe only
     xtts_lib_available = True
     del _TTSProbe
-    print("✅ Coqui TTS library available")
+    logger.info("Coqui TTS library available")
 except Exception as _e:
-    print(f"⚠️ Coqui TTS library not available: {_e}")
+    logger.warning(f"Coqui TTS library not available: {_e}")
 
 def get_xtts_model():
     """Lazy load Coqui XTTS v2 model once per process."""
@@ -256,11 +343,11 @@ def get_xtts_model():
         # Multilingual cross-lingual TTS model (supports Catalan via language code)
         xtts_model = CoquiTTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
         xtts_available = True
-        print("✅ Coqui XTTS v2 loaded successfully")
+        logger.info("Coqui XTTS v2 loaded successfully")
     except Exception as e:
         xtts_model = None
         xtts_available = False
-        print(f"⚠️ Coqui XTTS not available: {e}")
+        logger.warning(f"Coqui XTTS not available: {e}")
     return xtts_model
 
 # Optional: datasets availability for preload/health
@@ -268,12 +355,17 @@ datasets_available = False
 try:
     from datasets import load_dataset as _load_dataset_probe  # noqa: F401
     datasets_available = True
-    print("✅ Datasets library available")
+    logger.info("Datasets library available")
 except Exception as _e:
-    print(f"⚠️ Datasets library not available: {_e}")
+    logger.warning(f"Datasets library not available: {_e}")
 
 # Simple in-memory LRU cache for synthesized audio (by text + voice params)
-MAX_CACHE_ITEMS = 100
+try:
+    from backend.config import MAX_CACHE_ITEMS, API_CORS_ORIGINS, MAX_UPLOAD_SIZE_MB
+except Exception:
+    MAX_CACHE_ITEMS = int(os.environ.get("MAX_CACHE_ITEMS", "100"))
+    API_CORS_ORIGINS = ["*"]
+    MAX_UPLOAD_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "20"))
 _audio_cache: "OrderedDict[str, tuple[str, Path]]" = OrderedDict()
 
 def _make_cache_key(text: str, language: str, dialect: str, voice_model_id: str) -> str:
@@ -400,7 +492,7 @@ def _find_best_sample_from_datasets(dataset_names: List[str], local_path: Option
             if best_sample:
                 return best_sample
         except Exception as e:
-            print(f"⚠️ Dataset load failed: {e}")
+            logger.warning(f"Dataset load failed: {e}")
     return None
 
 def _get_dataset_reference_wav(temp_dir: Path) -> Optional[Path]:
@@ -443,9 +535,9 @@ try:
     result = subprocess.run(['espeak-ng', '--version'], capture_output=True, text=True)
     if result.returncode == 0:
         espeak_available = True
-        print("✅ espeak-ng available")
+        logger.info("espeak-ng available")
 except:
-    print("⚠️ espeak-ng not available")
+    logger.warning("espeak-ng not available")
 
 # Catalan dialects configuration
 CATALAN_DIALECTS = [
@@ -505,6 +597,9 @@ class VoicebotCreateRequest(BaseModel):
 # Health check
 @api_router.get("/health")
 async def health_check():
+    active_provider = os.environ.get("TRANSFORMERS_PROVIDER", "local")
+    active_model = os.environ.get("TRANSFORMERS_MODEL", "distilgpt2")
+    dev_mode = os.environ.get("DEVELOPMENT_MODE", "false")
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -515,7 +610,17 @@ async def health_check():
             "espeak": "available" if espeak_available else "unavailable",
             "unsloth": "available" if unsloth_available else "unavailable",
         },
-        "supported_languages": list(SUPPORTED_LANGS.keys())
+        "supported_languages": list(SUPPORTED_LANGS.keys()),
+        "transformers": {
+            "provider": active_provider,
+            "model": active_model,
+        },
+        "limits": {
+            "max_upload_mb": MAX_UPLOAD_SIZE_MB,
+        },
+        "flags": {
+            "development_mode": dev_mode,
+        }
     }
 
 # **ENHANCED SPEECH SYNTHESIS - HYPERREALISTIC CATALAN**
@@ -834,7 +939,7 @@ async def create_chatbot(chatbot: ChatbotCreateRequest):
     }
     
     # SQLite insert using helper (handles JSON + embed)
-    sql_db.create_chatbot(chatbot_data)
+    await asyncio.to_thread(sql_db.create_chatbot, chatbot_data)
     return {"message": "Chatbot created successfully", "chatbot": chatbot_data}
 
 @api_router.get("/chatbots")
@@ -846,7 +951,7 @@ async def get_chatbots():
             from backend.database_sql import db as sql_db
         except ImportError:
             from database_sql import db as sql_db
-        bots = sql_db.execute_query("SELECT * FROM chatbots ORDER BY created_at DESC")
+        bots = await asyncio.to_thread(sql_db.execute_query, "SELECT * FROM chatbots ORDER BY created_at DESC")
         return {"bots": bots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching chatbots: {str(e)}")
@@ -856,7 +961,7 @@ async def chat_with_bot(request: ChatRequest):
     """Chat with a chatbot using OpenAI Assistant"""
     
     # SQLite query
-    bot_rows = sql_db.execute_query("SELECT * FROM chatbots WHERE id = ?", (request.bot_id,))
+    bot_rows = await asyncio.to_thread(sql_db.execute_query, "SELECT * FROM chatbots WHERE id = ?", (request.bot_id,))
     if not bot_rows:
         raise HTTPException(status_code=404, detail="Chatbot not found")
     bot = bot_rows[0]
@@ -970,12 +1075,11 @@ async def chat_with_bot(request: ChatRequest):
                         max_tokens=bot.get("max_tokens", 150)
                     )
                     reply = response.choices[0].message.content
-                    
+
             except Exception as e:
                 error_msg = str(e)
                 reply = f"❌ Error del VeuPlus Assistant: {error_msg}"
-                print(f"❌ VeuPlus Assistant error: {error_msg}")
-        
+                logger.error(f"Assistant error: {error_msg}")
         else:
             # Enhanced mock response
             kb_info = f" (amb {len(bot.get('knowledge_base_ids', []))} documents de coneixement)" if bot.get("knowledge_base_ids") else ""
@@ -1017,7 +1121,7 @@ async def create_voicebot(voicebot: VoicebotCreateRequest):
     except ImportError:
         from database_sql import db as sql_db
     
-    sql_db.create_voicebot(voicebot_data)
+    await asyncio.to_thread(sql_db.create_voicebot, voicebot_data)
     return {"message": "Voicebot created successfully", "voicebot": voicebot_data}
 
 @api_router.get("/voicebots")
@@ -1045,7 +1149,7 @@ async def voice_chat_with_bot(request: ChatRequest):
     except ImportError:
         from database_sql import db as sql_db
     
-    bot_rows = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (request.bot_id,))
+    bot_rows = await asyncio.to_thread(sql_db.execute_query, "SELECT * FROM voicebots WHERE id = ?", (request.bot_id,))
     if not bot_rows:
         raise HTTPException(status_code=404, detail="Voicebot not found")
     
@@ -1257,7 +1361,7 @@ async def train_voice(
         }
         
         # SQLite insert for voice model
-        sql_db.create_voice_model(voice_data)
+        await asyncio.to_thread(sql_db.create_voice_model, voice_data)
         return {
             "message": "Voice training completed (simulated)",
             "voice": voice_data,
@@ -1274,7 +1378,7 @@ async def get_voices():
             from backend.database_sql import db as sql_db
         except ImportError:
             from database_sql import db as sql_db
-        voices = sql_db.execute_query("SELECT * FROM voice_models ORDER BY created_at DESC")
+        voices = await asyncio.to_thread(sql_db.execute_query, "SELECT * FROM voice_models ORDER BY created_at DESC")
         return {"voices": voices}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching voices: {str(e)}")
@@ -1302,14 +1406,17 @@ async def upload_knowledge_base(
         }
         
         # SQLite insert for knowledge base
-        sql_db.create_knowledge_item({
-            "id": item_data["id"],
-            "title": item_data["name"],
-            "content": item_data["content"],
-            "source_type": item_data["file_type"],
-            "file_size": None,
-            "created_at": item_data["created_at"],
-        })
+        await asyncio.to_thread(
+            sql_db.create_knowledge_item,
+            {
+                "id": item_data["id"],
+                "title": item_data["name"],
+                "content": item_data["content"],
+                "source_type": item_data["file_type"],
+                "file_size": None,
+                "created_at": item_data["created_at"],
+            },
+        )
         items.append(item_data)
     
     return {"message": f"Uploaded {len(items)} files", "items": items}
@@ -1323,7 +1430,7 @@ async def get_knowledge_base():
             from backend.database_sql import db as sql_db
         except ImportError:
             from database_sql import db as sql_db
-        items = sql_db.execute_query("SELECT * FROM knowledge_base ORDER BY created_at DESC")
+        items = await asyncio.to_thread(sql_db.execute_query, "SELECT * FROM knowledge_base ORDER BY created_at DESC")
         return {"items": items}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching knowledge base: {str(e)}")
@@ -1663,7 +1770,7 @@ export default VeuPlusWidget;
 async def delete_chatbot(bot_id: str):
     """Delete a chatbot"""
     # SQLite delete
-    rows = sql_db.execute_delete("chatbots", "id = ?", (bot_id,))
+    rows = await asyncio.to_thread(sql_db.execute_delete, "chatbots", "id = ?", (bot_id,))
     if rows > 0:
         return {"message": "Chatbot deleted successfully"}
     raise HTTPException(status_code=404, detail="Chatbot not found")
@@ -1672,7 +1779,7 @@ async def delete_chatbot(bot_id: str):
 async def delete_voicebot(bot_id: str):
     """Delete a voicebot"""
     # SQLite delete
-    rows = sql_db.execute_delete("voicebots", "id = ?", (bot_id,))
+    rows = await asyncio.to_thread(sql_db.execute_delete, "voicebots", "id = ?", (bot_id,))
     if rows > 0:
         return {"message": "Voicebot deleted successfully"}
     raise HTTPException(status_code=404, detail="Voicebot not found")
@@ -1681,7 +1788,7 @@ async def delete_voicebot(bot_id: str):
 async def delete_voice(voice_id: str):
     """Delete a voice model"""
     # SQLite delete
-    rows = sql_db.execute_delete("voice_models", "id = ?", (voice_id,))
+    rows = await asyncio.to_thread(sql_db.execute_delete, "voice_models", "id = ?", (voice_id,))
     if rows > 0:
         return {"message": "Voice deleted successfully"}
     raise HTTPException(status_code=404, detail="Voice not found")
@@ -1690,7 +1797,7 @@ async def delete_voice(voice_id: str):
 async def delete_knowledge_item(item_id: str):
     """Delete a knowledge base item"""
     # SQLite delete
-    rows = sql_db.execute_delete("knowledge_base", "id = ?", (item_id,))
+    rows = await asyncio.to_thread(sql_db.execute_delete, "knowledge_base", "id = ?", (item_id,))
     if rows > 0:
         return {"message": "Knowledge item deleted successfully"}
     raise HTTPException(status_code=404, detail="Knowledge item not found")
@@ -1727,10 +1834,99 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=API_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# HTTP metrics middleware (duration and status)
+_metrics_ready = False
+for import_path in ("backend.core.metrics", "core.metrics"):
+    try:
+        mod = __import__(import_path, fromlist=["record_http_request", "get_metrics_export"])  # type: ignore
+        record_http_request = getattr(mod, "record_http_request")
+        get_metrics_export = getattr(mod, "get_metrics_export")
+
+        @app.middleware("http")
+        async def metrics_middleware(request: Request, call_next):
+            import time
+            start = time.perf_counter()
+            response = await call_next(request)
+            duration = time.perf_counter() - start
+            try:
+                record_http_request(request.method, request.url.path, response.status_code, duration)  # type: ignore
+            except Exception:
+                pass
+            return response
+
+        @app.get("/metrics")
+        async def metrics_endpoint():
+            body, content_type = get_metrics_export()  # type: ignore
+            from fastapi.responses import Response
+            return Response(content=body, media_type=content_type)
+
+        _metrics_ready = True
+        break
+    except Exception:
+        continue
+if not _metrics_ready:
+    logger.warning("Metrics middleware disabled: could not import metrics provider")
+
+# Request ID + access log middleware
+from uuid import uuid4
+
+@app.middleware("http")
+async def request_id_logger(request: Request, call_next):
+    req_id = request.headers.get("X-Request-ID") or uuid4().hex
+    start = datetime.now()
+    response = None
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        duration_ms = (datetime.now() - start).total_seconds() * 1000.0
+        try:
+            # Log as JSON string payload in msg field
+            logger.info('{"request_id":"%s","method":"%s","path":"%s","status":%d,"duration_ms":%.2f}',
+                        req_id, request.method, request.url.path, getattr(response, 'status_code', 0), duration_ms)
+        except Exception:
+            pass
+
+# Rate limiting (simple in-memory)
+try:
+    from backend.core.ratelimit import limiter
+except Exception:
+    from core.ratelimit import limiter  # type: ignore
+
+_RL_GLOBAL = int(os.environ.get("RATE_LIMIT_GLOBAL_RPM", "300"))
+_RL_CHAT = int(os.environ.get("RATE_LIMIT_CHAT_RPM", "30"))
+_RL_TTS = int(os.environ.get("RATE_LIMIT_TTS_RPM", "60"))
+_RL_ASR = int(os.environ.get("RATE_LIMIT_ASR_RPM", "60"))
+_RL_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW_S", "60"))
+_RL_SSE_CONC = int(os.environ.get("RATE_LIMIT_CHAT_SSE_CONCURRENT", "1"))
+
+
+@app.middleware("http")
+async def simple_rate_limit(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    path = request.url.path or "/"
+    # Skip metrics
+    if path == "/metrics":
+        return await call_next(request)
+
+    limit = _RL_GLOBAL
+    if path.startswith("/api/chat/stream"):
+        limit = _RL_CHAT
+    elif path.startswith("/api/tts/"):
+        limit = _RL_TTS
+    elif path.startswith("/api/asr/"):
+        limit = _RL_ASR
+
+    if not limiter.is_allowed(client_ip, limit, _RL_WINDOW):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Rate limit exceeded"}, status_code=429)
+
+    return await call_next(request)
 
 # Configure logging
 logging.basicConfig(

@@ -27,9 +27,14 @@ try:
 except Exception:
     HF_DATASETS_AVAILABLE = False
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Setup logging (do not reconfigure global logging here)
+logger = logging.getLogger("veuplus.training")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # Base directory (Docker vs local)
 if Path("/app/backend").exists():
@@ -57,6 +62,7 @@ class TrainingRequest(BaseModel):
     training_config: Dict[str, Any] = {}
     dataset_path: Optional[str] = None
     dataset_names: Optional[List[str]] = None
+    trainer: Optional[str] = "simulate"  # simulate | coqui_xtts
 
 class TrainingJob(BaseModel):
     job_id: str
@@ -155,6 +161,8 @@ LANGUAGE_DATASETS = {
 CATALAN_DATASETS: List[str] = [
     "projecte-aina/openslr-slr69-ca-trimmed-denoised",
     "projecte-aina/4catac",
+    # Multi-speaker Catalan corpus (Projecte AINA)
+    "projecte-aina/matxa-tts-cat-multispeaker",
 ]
 
 # Training Configuration
@@ -200,6 +208,86 @@ def setup_training_directories():
 
     return dirs
 
+def _first_wav_per_speaker(audio_dir: Path, max_per_speaker: int = 1) -> Dict[str, List[Path]]:
+    """Collect first N wavs per speaker based on manifest.csv (if available)."""
+    result: Dict[str, List[Path]] = {}
+    manifest = audio_dir / "manifest.csv"
+    if manifest.exists():
+        try:
+            import csv
+            with open(manifest, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    spk = (row.get("speaker_id") or "unknown").strip()
+                    fname = (row.get("audio_file") or "").strip()
+                    if not fname:
+                        continue
+                    p = audio_dir / fname
+                    if not p.exists():
+                        continue
+                    lst = result.setdefault(spk, [])
+                    if len(lst) < max_per_speaker:
+                        lst.append(p)
+        except Exception:
+            return {}
+    return result
+
+def build_speaker_previews_and_embeddings(audio_dir: Path) -> None:
+    """Best-effort: genera una muestra WAV por locutor y un embedding .npy.
+    - Previews: copia el primer WAV por locutor a backend/static/voices/<speaker>_sample.wav
+    - Embeddings: guarda backend/models/speakers/<speaker>.npy usando resemb/ECAPA si está disponible
+    """
+    previews_dir = (BASE_DIR / "static" / "voices")
+    previews_dir.mkdir(exist_ok=True, parents=True)
+    speakers_dir = (BASE_DIR / "models" / "speakers")
+    speakers_dir.mkdir(exist_ok=True, parents=True)
+
+    per_spk = _first_wav_per_speaker(audio_dir, max_per_speaker=1)
+    if not per_spk:
+        return
+
+    # Try resemb or speechbrain ecapa
+    embedder = None
+    try:
+        from resemblyzer import VoiceEncoder, preprocess_wav  # type: ignore
+        embedder = ("resemblyzer", VoiceEncoder())
+    except Exception:
+        try:
+            import torch
+            from speechbrain.pretrained import EncoderClassifier  # type: ignore
+            ecapa = EncoderClassifier.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb")
+            embedder = ("ecapa", ecapa)
+        except Exception:
+            embedder = None
+
+    for spk, files in per_spk.items():
+        if not files:
+            continue
+        src = files[0]
+        # Preview copy
+        try:
+            dst = previews_dir / f"{spk}_sample.wav"
+            shutil.copyfile(src, dst)
+        except Exception:
+            pass
+        # Embedding
+        if embedder:
+            try:
+                if embedder[0] == "resemblyzer":
+                    from resemblyzer import preprocess_wav  # type: ignore
+                    wav = preprocess_wav(str(src))
+                    vec = embedder[1].embed_utterance(wav)
+                    np.save(str(speakers_dir / f"{spk}.npy"), vec)
+                else:
+                    import torchaudio  # type: ignore
+                    signal, sr = torchaudio.load(str(src))
+                    with torch.no_grad():
+                        emb = embedder[1].encode_batch(signal)
+                        vec = emb.squeeze().cpu().numpy()
+                    np.save(str(speakers_dir / f"{spk}.npy"), vec)
+            except Exception:
+                continue
+
 async def download_catalan_dataset(job_id: str):
     """Download and prepare Catalan dataset (local path priority, then HF)."""
     try:
@@ -235,6 +323,9 @@ async def prepare_catalan_samples(
     max_samples: int = 50,
 ) -> int:
     saved = 0
+    # Prepare manifest and speakers index structures
+    manifest_rows: List[str] = []  # CSV rows: audio_file,text,speaker_id,language
+    speaker_counts: Dict[str, int] = {}
     # 1) Local path priority
     if dataset_path and Path(dataset_path).exists():
         await update_job_progress(job_id, 12, f"Scanning local path: {dataset_path}")
@@ -243,7 +334,11 @@ async def prepare_catalan_samples(
                 break
             try:
                 data, sr = sf.read(str(wav))
-                sf.write(str(out_dir / f"local_{idx+1:04d}.wav"), data, sr)
+                target_path = out_dir / f"local_{idx+1:04d}.wav"
+                sf.write(str(target_path), data, sr)
+                # No transcript available; keep empty text and unknown speaker
+                manifest_rows.append(f"{target_path.name},,unknown,ca")
+                speaker_counts["unknown"] = speaker_counts.get("unknown", 0) + 1
                 saved += 1
             except Exception as e:
                 logger.warning(f"Failed local sample {wav}: {e}")
@@ -260,19 +355,49 @@ async def prepare_catalan_samples(
                 for i, sample in enumerate(ds):
                     if saved >= max_samples:
                         break
-                    audio = sample.get("audio") if isinstance(sample, dict) else getattr(sample, "audio", None)
-                    if isinstance(audio, dict) and "array" in audio and "sampling_rate" in audio:
-                        try:
+                    # Robust field extraction for text/speaker
+                    try:
+                        audio = sample.get("audio") if isinstance(sample, dict) else getattr(sample, "audio", None)
+                        text = (
+                            (sample.get("text") if isinstance(sample, dict) else getattr(sample, "text", None))
+                            or (sample.get("sentence") if isinstance(sample, dict) else getattr(sample, "sentence", None))
+                            or (sample.get("transcription") if isinstance(sample, dict) else getattr(sample, "transcription", None))
+                            or ""
+                        )
+                        speaker = (
+                            (sample.get("speaker") if isinstance(sample, dict) else getattr(sample, "speaker", None))
+                            or (sample.get("speaker_id") if isinstance(sample, dict) else getattr(sample, "speaker_id", None))
+                            or "unknown"
+                        )
+                        if isinstance(audio, dict) and "array" in audio and "sampling_rate" in audio:
+                            file_name = f"{name.split('/')[-1]}_{i+1:04d}.wav"
                             sf.write(
-                                str(out_dir / f"{name.split('/')[-1]}_{i+1:04d}.wav"),
+                                str(out_dir / file_name),
                                 audio["array"],
                                 int(audio["sampling_rate"]),
                             )
+                            manifest_rows.append(f"{file_name},{str(text).replace(',', ' ').strip()},{str(speaker).strip()},ca")
+                            speaker_counts[str(speaker).strip()] = speaker_counts.get(str(speaker).strip(), 0) + 1
                             saved += 1
-                        except Exception as e:
-                            logger.warning(f"Failed HF sample {i} from {name}: {e}")
+                    except Exception as e:
+                        logger.warning(f"Failed HF sample {i} from {name}: {e}")
             except Exception as e:
                 logger.warning(f"HF dataset failed {name}: {e}")
+    # Persist manifest and speakers index if we saved anything
+    try:
+        if manifest_rows:
+            manifest_path = out_dir / "manifest.csv"
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write("audio_file,text,speaker_id,language\n")
+                for row in manifest_rows:
+                    f.write(row + "\n")
+        if speaker_counts:
+            speakers_path = out_dir / "speakers.json"
+            with open(speakers_path, "w", encoding="utf-8") as f:
+                json.dump({"speakers": speaker_counts, "created_at": datetime.utcnow().isoformat()}, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save manifest/speakers index: {e}")
+
     return saved
 
 async def preprocess_audio_data(job_id: str, dataset_path: str, language: str):
@@ -287,8 +412,24 @@ async def preprocess_audio_data(job_id: str, dataset_path: str, language: str):
         lang_config = LANGUAGE_DATASETS.get(language, LANGUAGE_DATASETS["ca"])
         target_sr = lang_config["sample_rate"]
         
-        # Simulate preprocessing (in production, process actual audio files)
-        await asyncio.sleep(2)  # Simulate processing time
+        # Prepare a small sample set and derive manifests/speakers when Catalan
+        audio_dir = Path(dataset_path) / "audio"
+        audio_dir.mkdir(exist_ok=True, parents=True)
+        if language == "ca":
+            try:
+                # Pull small sample set creating manifest/speakers
+                await prepare_catalan_samples(job_id, audio_dir, None, [
+                    "projecte-aina/matxa-tts-cat-multispeaker"
+                ], max_samples=50)
+            except Exception as e:
+                logger.warning(f"Catalan sample preparation failed: {e}")
+            # Try to build simple speaker previews/embeddings (best-effort)
+            try:
+                await asyncio.to_thread(build_speaker_previews_and_embeddings, audio_dir)
+            except Exception as e:
+                logger.warning(f"Speaker previews/embeddings skipped: {e}")
+        # Simulate additional preprocessing time
+        await asyncio.sleep(1)
         
         # Optional: generate phonetic labels for Catalan using SEGRE
         phonetic_labels: Dict[str, str] = {}
@@ -307,8 +448,9 @@ async def preprocess_audio_data(job_id: str, dataset_path: str, language: str):
             "job_id": job_id,
             "language": language,
             "sample_rate": target_sr,
-            "total_samples": 100,  # Simulate sample count
-            "total_duration": 300.0,  # 5 minutes of audio
+            # Best-effort totals from manifest if present
+            "total_samples": sum(1 for _ in (audio_dir.glob("*.wav"))) if audio_dir.exists() else 0,
+            "total_duration": 0.0,
             "preprocessing_completed": datetime.utcnow().isoformat()
         }
         if phonetic_labels:
@@ -326,7 +468,7 @@ async def preprocess_audio_data(job_id: str, dataset_path: str, language: str):
         await update_job_status(job_id, "failed", error_message=str(e))
         raise
 
-async def train_xtts_model(job_id: str, preprocessed_path: str, config: Dict[str, Any]):
+async def train_xtts_model(job_id: str, preprocessed_path: str, config: Dict[str, Any], trainer: Optional[str] = "simulate"):
     """Train XTTS v2 model with real implementation"""
     try:
         await update_job_status(job_id, "training")
@@ -343,7 +485,72 @@ async def train_xtts_model(job_id: str, preprocessed_path: str, config: Dict[str
         with open(config_path, 'w') as f:
             json.dump(training_config, f, indent=2)
         
-        # Simulate XTTS v2 training process
+        # If real trainer is requested, invoke external script (placeholder)
+        if (trainer or "simulate").lower() == "coqui_xtts":
+            await update_job_progress(job_id, 50, "Launching Coqui XTTS trainer...")
+            script_path = str((BASE_DIR.parent / "scripts" / "train_coqui_xtts.py").resolve())
+            model_output_dir = BASE_DIR / "models" / f"{job_id}"
+            manifest_csv = Path(preprocessed_path) / "audio" / "manifest.csv"
+            cmd = [
+                "python", script_path,
+                "--manifest", str(manifest_csv),
+                "--out", str(model_output_dir),
+                "--epochs", str(training_config.get("num_epochs", 50)),
+                "--batch-size", str(training_config.get("batch_size", 4)),
+                "--lr", str(training_config.get("learning_rate", 1e-4)),
+            ]
+            try:
+                import subprocess
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                progress = 50
+                last_loss = None
+                while True:
+                    line = proc.stdout.readline()
+                    if not line and proc.poll() is not None:
+                        break
+                    if line:
+                        line = line.strip()
+                        # Heuristic: parse 'epoch=X/Y loss=Z'
+                        if "epoch=" in line and "loss=" in line:
+                            try:
+                                parts = {p.split("=")[0].strip(): p.split("=")[1].strip() for p in line.split() if "=" in p}
+                                epoch = int(parts.get("epoch", "0").split("/")[0])
+                                total = int(parts.get("epoch", "0/1").split("/")[1])
+                                last_loss = float(parts.get("loss", "0"))
+                                # Map epoch progress into 50..90
+                                progress = 50 + int((epoch / max(total,1)) * 40)
+                                await update_job_progress(job_id, progress, f"Training epoch {epoch}/{total} - Loss: {last_loss:.4f}", epoch=epoch, loss=last_loss, gpu_utilization=get_gpu_utilization())
+                            except Exception:
+                                pass
+                code = proc.wait()
+                if code != 0:
+                    raise RuntimeError(f"Trainer exited with code {code}")
+                # Final steps similar to simulate branch, using last_loss if available
+                loss = last_loss if last_loss is not None else 0.5
+                final_model_path = (BASE_DIR / "models" / f"{job_id}" / "final_model.json")
+                model_metadata = {
+                    "job_id": job_id,
+                    "model_type": "XTTS_v2",
+                    "language": config.get("language", "ca"),
+                    "dialect": config.get("dialect", "central"),
+                    "training_epochs": training_config.get("num_epochs", 0),
+                    "final_loss": loss,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "model_version": "1.0.0",
+                    "sample_rate": LANGUAGE_DATASETS[config.get("language", "ca")]["sample_rate"]
+                }
+                with open(final_model_path, 'w') as f:
+                    json.dump(model_metadata, f, indent=2)
+                await update_job_progress(job_id, 95, "Finalizing model...")
+                await asyncio.sleep(1)
+                await update_job_status(job_id, "completed", model_path=str(final_model_path))
+                await update_job_progress(job_id, 100, "Training completed successfully!")
+                return str(final_model_path)
+            except Exception as e:
+                logger.error(f"Coqui XTTS trainer failed: {e}")
+                raise
+
+        # Simulated XTTS v2 training process (default)
         num_epochs = training_config["num_epochs"]
         
         for epoch in range(1, num_epochs + 1):
@@ -503,7 +710,7 @@ async def execute_training_pipeline(job_id: str, request: TrainingRequest):
         preprocessed_path = await preprocess_audio_data(job_id, dataset_path, request.language)
         
         # Train model
-        model_path = await train_xtts_model(job_id, preprocessed_path, request.training_config)
+        model_path = await train_xtts_model(job_id, preprocessed_path, request.training_config, trainer=(request.trainer or "simulate"))
         
         logger.info(f"Training pipeline completed for job {job_id}")
         

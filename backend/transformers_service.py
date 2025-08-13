@@ -21,6 +21,30 @@ import threading
 from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
+# Robust imports to work when running as script or as package
+try:
+    from backend.pipeline.events import Event
+except Exception:
+    from pipeline.events import Event  # type: ignore
+
+try:
+    from backend.pipeline.orchestrator import Orchestrator
+except Exception:
+    from pipeline.orchestrator import Orchestrator  # type: ignore
+
+try:
+    from backend.streaming import sse_response
+except Exception:
+    from streaming import sse_response  # type: ignore
+
+try:
+    from backend.core.metrics import record_event
+except Exception:
+    try:
+        from core.metrics import record_event  # type: ignore
+    except Exception:
+        def record_event(name: str, value: float | int = 1) -> None:  # type: ignore
+            return
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -33,12 +57,16 @@ _AVAILABLE = False
 _CURRENT_MODEL_NAME = None
 
 # Configuration
-DEFAULT_MODEL = os.environ.get("TRANSFORMERS_MODEL", "openai/gpt-oss-20b")
+try:
+    from backend.config import TRANSFORMERS_MODEL as DEFAULT_MODEL, TRANSFORMERS_PROVIDER as PROVIDER, TRANSFORMERS_LOAD_IN_4BIT as LOAD_IN_4BIT, VLLM_BASE_URL
+except Exception:
+    DEFAULT_MODEL = os.environ.get("TRANSFORMERS_MODEL", "openai/gpt-oss-20b")
+    PROVIDER = os.environ.get("TRANSFORMERS_PROVIDER", "local").lower()
+    LOAD_IN_4BIT = os.environ.get("TRANSFORMERS_LOAD_IN_4BIT", "0") == "1"
+    VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000")
 MAX_LENGTH = int(os.environ.get("TRANSFORMERS_MAX_LENGTH", "1000"))
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-PROVIDER = os.environ.get("TRANSFORMERS_PROVIDER", "local").lower()  # local | vllm
-LOAD_IN_4BIT = os.environ.get("TRANSFORMERS_LOAD_IN_4BIT", "0") == "1"
-VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # API Router
 transformers_router = APIRouter(prefix="/api/transformers", tags=["Transformers Service"])
@@ -185,10 +213,18 @@ def generate_response(messages: List[Dict[str, str]], model_name: str = DEFAULT_
 
         response = _TOKENIZER.decode(outputs[0][len(inputs[0]):], skip_special_tokens=True)
         return response.strip()
+    
+    except Exception as e:
+        logger.error(f"Error generating response: {e}")
+        raise RuntimeError(f"Failed to generate response: {str(e)}")
 
 
 def stream_response(messages: List[Dict[str, str]], model_name: str = DEFAULT_MODEL, **kwargs):
-    """Yield partial responses (token-by-token) for real-time streaming."""
+    """Yield partial responses (token-by-token) for real-time streaming.
+
+    Refactor inspirado en un diseño de eventos/pipeline: mantenemos salida SSE
+    pero dejamos preparado un orquestador para futuras cadenas de nodos.
+    """
     if not _AVAILABLE or (PROVIDER == "local" and _MODEL is None):
         if not load_model(model_name):
             raise HTTPException(status_code=503, detail="Transformers model not available")
@@ -222,7 +258,7 @@ def stream_response(messages: List[Dict[str, str]], model_name: str = DEFAULT_MO
         yield "data: [DONE]\n\n"
         return
 
-    # Local streaming (HF): use TextIteratorStreamer
+    # Local streaming (HF): use TextIteratorStreamer + event serialization
     try:
         conversation_text = _render_messages_as_text(messages)
         inputs = _TOKENIZER(conversation_text, return_tensors="pt")
@@ -241,17 +277,20 @@ def stream_response(messages: List[Dict[str, str]], model_name: str = DEFAULT_MO
 
         thread = threading.Thread(target=_MODEL.generate, kwargs=gen_kwargs)
         thread.start()
-
+        token_count = 0
         for piece in streamer:
             if piece:
-                # SSE chunk
-                data = json.dumps({"delta": piece})
-                yield f"data: {data}\n\n"
+                evt = Event(type="token", data={"text": piece})
+                yield evt.to_sse()
+                token_count += 1
+                record_event("chat.tokens", 1)
 
         thread.join()
-        yield "data: [DONE]\n\n"
+        if token_count:
+            record_event("chat.tokens_total", token_count)
+        yield Event(type="done", data={}).to_sse()
     except Exception as e:
-        yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+        yield Event(type="error", data={"message": str(e)}).to_sse()
 
 
 @transformers_router.post("/stream")
@@ -269,10 +308,6 @@ async def stream_chat(request: ChatRequest):
             yield chunk
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-        
-    except Exception as e:
-        logger.error(f"Error generating response: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 @transformers_router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -393,6 +428,6 @@ def initialize_service():
     except Exception as e:
         logger.warning(f"Could not initialize transformers service: {str(e)}")
 
-# Auto-initialize when module is imported
-if __name__ != "__main__":
+# Auto-initialize when module is imported (skip in tests/CI)
+if __name__ != "__main__" and os.environ.get("DISABLE_TRANSFORMERS_INIT", "0") != "1":
     initialize_service()

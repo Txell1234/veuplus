@@ -68,3 +68,6 @@ __pycache__/
 
 # Android SDK
 android-sdk/
+
+# Ocultar/ignorar carpeta de archivo del frontend
+archive/

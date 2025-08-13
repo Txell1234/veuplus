@@ -12,12 +12,12 @@ const VoiceTrainingAdvanced = () => {
   const wsRef = useRef(null);
 
   const getApiBase = () => {
-    const envUrl = process.env.REACT_APP_BACKEND_URL;
+    const viteUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
+      ? import.meta.env.VITE_BACKEND_URL
+      : undefined;
+    const envUrl = viteUrl || process.env.REACT_APP_BACKEND_URL;
     if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}`;
-    if (typeof window !== 'undefined' && window.location && window.location.port === '3000') {
-      return 'http://localhost:8001';
-    }
-    return '';
+    return 'http://localhost:8001';
   };
   // API base debe incluir /api para llamadas HTTP
   const API = `${getApiBase()}`;
@@ -405,17 +405,17 @@ const VoiceTrainingAdvanced = () => {
       </div>
 
       <div className="flex justify-between mt-8">
-        <button
-          onClick={() => setActiveStep(2)}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-        >
-          Back
-        </button>
-        <button
-          onClick={startTraining}
-          disabled={!trainingForm.name || !systemStatus.system_ready || isLoading}
-          className="px-8 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 flex items-center"
-        >
+                  <button
+            onClick={() => setActiveStep(2)}
+            className="btn-secondary"
+          >
+            Back
+          </button>
+          <button
+            onClick={startTraining}
+            disabled={!trainingForm.name || !systemStatus.system_ready || isLoading}
+            className="btn-primary disabled:opacity-50 flex items-center"
+          >
           {isLoading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -440,7 +440,7 @@ const VoiceTrainingAdvanced = () => {
         </div>
 
         {progress && (
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="card p-6">
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm font-medium text-gray-700">
                 Progress: {progress.progress}%
@@ -504,14 +504,14 @@ const VoiceTrainingAdvanced = () => {
           {currentJob && progress?.status !== 'completed' && (
             <button
               onClick={() => cancelTraining(currentJob)}
-              className="px-6 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+              className="btn-danger"
             >
               Cancel Training
             </button>
           )}
           <button
             onClick={() => setActiveStep(1)}
-            className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+            className="btn-primary"
           >
             Start New Training
           </button>
@@ -526,13 +526,13 @@ const VoiceTrainingAdvanced = () => {
         <h3 className="text-xl font-semibold text-gray-900">Training History</h3>
         <button
           onClick={loadInitialData}
-          className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+          className="btn-secondary text-sm"
         >
           Refresh
         </button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -706,7 +706,7 @@ const VoiceTrainingAdvanced = () => {
 
               <button
                 onClick={() => setActiveStep(2)}
-                className="mt-8 px-8 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-lg font-medium"
+                className="btn-primary mt-8 text-lg"
               >
                 Start Training
               </button>

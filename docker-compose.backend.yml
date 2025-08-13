@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8010:8001"
+    environment:
+      - VEUPLUS_DB_PATH=/data/veuplus.db
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
