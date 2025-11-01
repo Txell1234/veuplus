@@ -1,0 +1,54 @@
+{
+  "model_id": "trained_senyor_catala_2",
+  "name": "Sr. Català Pro - Voz Masculina Barcelona (Avanzada)",
+  "language": "ca",
+  "dialect": "central",
+  "gender": "male",
+  "quality": "ultra_trained",
+  "type": "trained_custom",
+  "voice_profile": {
+    "fundamental_frequency": {
+      "mean": 158.836752916399,
+      "range": 350.90909090909093,
+      "variability": 53.004149871171386
+    },
+    "vocal_characteristics": {
+      "energy_level": 0.12439918518066406,
+      "spectral_centroid": 2449.7355398754976,
+      "mfcc_profile": [
+        -245.57933044433594,
+        95.436279296875,
+        -17.88454246520996,
+        27.11904525756836,
+        1.437917947769165,
+        -3.3071556091308594,
+        -3.481692314147949,
+        -3.0204665660858154,
+        -11.052742958068848,
+        -5.502521514892578,
+        1.1193078756332397,
+        -10.692838668823242,
+        -6.006778240203857
+      ]
+    },
+    "speaking_style": {
+      "pace": "moderate",
+      "clarity": "high",
+      "expressiveness": "natural"
+    }
+  },
+  "training_data": {
+    "personal_samples": 1,
+    "aina_samples": 0,
+    "total_duration": 14.680816326530612,
+    "segre_enhanced": true
+  },
+  "capabilities": [
+    "segre_phonetics",
+    "aina_enhanced",
+    "ultra_personalized",
+    "dialect_specific"
+  ],
+  "trained_at": "2025-09-20T23:55:13.399273",
+  "status": "ready"
+}

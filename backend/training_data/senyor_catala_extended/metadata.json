@@ -1,0 +1,41 @@
+{
+  "id": "senyor_catala_extended",
+  "source_file": "C:\\Users\\merit\\Downloads\\ElevenLabs_2025-09-20T15_25_19_Senyor catala_gen_sp100_s50_sb75_b_v3.mp3",
+  "processed_file": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\senyor_catala_extended\\processed.wav",
+  "duration": 23.875918367346937,
+  "sample_rate": 22050,
+  "gender": "male",
+  "dialect": "central",
+  "description": "Voz masculina catalana - Barcelona (Grabación 4 - Extendida)",
+  "transcription": "Aquest any hem assolit l'acord per a la llei d'amnistia, que no fa gaire ens deien que era impossible. I que permetrà la fi de la repressió i la recuperació de drets. Un pas necessari per abordar la següent fase de la negociació amb l'Estat: que Catalunya decideixi el seu futur en llibertat, votant sobre la independència.",
+  "phonetic_data": {
+    "original": "Aquest any hem assolit l'acord per a la llei d'amnistia, que no fa gaire ens deien que era impossible. I que permetrà la fi de la repressió i la recuperació de drets. Un pas necessari per abordar la següent fase de la negociació amb l'Estat: que Catalunya decideixi el seu futur en llibertat, votant sobre la independència.",
+    "phonetic": "a k $ 1 s t a ɲ e m a s s o l i t l ' a k o r d p e r a l a ʎ e i d ' a m n i s t i a , k $ 1 n o f a g a i r e e n z d e i e n k $ 1 e r a i m p o s s i b l e . i k $ 1 p e r m e t r a l a f i d e l a r e p r e s s i o i l a r e k u p e r a k i o d e d r e t s . u n p a s n e k e s s a r i p e r a b o r d a r l a s e g u e n t f a s e d e l a n e g o k i a k i o a m b l ' e s t a t : k $ 1 k a t a l u ɲ a d e k i d e i ks i e l s e u f u t u r e n ʎ i b e r t a t , b o t a n t s o b r e l a i n d e p e n d E n k i a .",
+    "dialect": "central"
+  },
+  "voice_features": {
+    "f0_mean": 120.25508398251417,
+    "f0_std": 45.90159774094648,
+    "f0_min": 50.0,
+    "f0_max": 377.0827781534121,
+    "spectral_centroid_mean": 1728.3606018082598,
+    "mfcc_mean": [
+      -214.98529052734375,
+      117.62325286865234,
+      -7.111013412475586,
+      24.606616973876953,
+      32.71665573120117,
+      1.3814287185668945,
+      -12.286273956298828,
+      6.918581008911133,
+      -6.346621036529541,
+      -1.202992558479309,
+      -0.5871078372001648,
+      3.4155330657958984,
+      -4.608615398406982
+    ],
+    "energy_mean": 0.11489665508270264,
+    "energy_std": 0.0741487592458725
+  },
+  "processed_at": "2025-09-20T23:54:33.273747"
+}

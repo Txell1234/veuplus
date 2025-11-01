@@ -1,0 +1,38 @@
+{
+  "aina_central_female": {
+    "name": "AINA Voz Femenina Central",
+    "language": "ca",
+    "dialect": "central",
+    "gender": "female",
+    "source": "aina_project",
+    "description": "Voz femenina del catalán central del proyecto AINA",
+    "sample_rate": 22050
+  },
+  "aina_central_male": {
+    "name": "AINA Voz Masculina Central",
+    "language": "ca",
+    "dialect": "central",
+    "gender": "male",
+    "source": "aina_project",
+    "description": "Voz masculina del catalán central del proyecto AINA",
+    "sample_rate": 22050
+  },
+  "aina_balearic_female": {
+    "name": "AINA Voz Femenina Balear",
+    "language": "ca",
+    "dialect": "balearic",
+    "gender": "female",
+    "source": "aina_project",
+    "description": "Voz femenina del dialecto balear del proyecto AINA",
+    "sample_rate": 22050
+  },
+  "aina_valencian_male": {
+    "name": "AINA Voz Masculina Valenciana",
+    "language": "ca",
+    "dialect": "valencian",
+    "gender": "male",
+    "source": "aina_project",
+    "description": "Voz masculina del dialecto valenciano del proyecto AINA",
+    "sample_rate": 22050
+  }
+}

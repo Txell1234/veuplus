@@ -1,0 +1,35 @@
+{
+  "id": "ded5924d-0bf0-4b5a-95f6-7a68cd22bd21",
+  "name": "Voz Femenina Catalana Ultimate",
+  "speaker_name": "Voz Femenina Catalana",
+  "gender": "feminine",
+  "language": "ca",
+  "dialect": "central",
+  "accent": "barcelona",
+  "quality": "hyperrealistic_ultimate_segre",
+  "created_at": "2025-09-20T17:31:28.822917",
+  "model_type": "ultimate_catalan_voice",
+  "training_data": {
+    "recording_count": 1,
+    "recordings": [
+      {
+        "voice_id": "voz_femenina",
+        "path": "backend/voice_models/user_reference_voice_2.mp3",
+        "context": "conversational"
+      }
+    ],
+    "phonetic_transcriptions": [],
+    "reference_texts": []
+  },
+  "segre_config": {
+    "dialect": "central",
+    "phonetic_support": true,
+    "transcription_quality": "basic"
+  },
+  "voice_characteristics": {
+    "gender_specific": true,
+    "accent_specific": true,
+    "phonetically_aligned": false,
+    "multi_context": false
+  }
+}

@@ -94,6 +94,7 @@ class VeuPlusDatabase:
                 )
             """)
 
+
             # Lightweight migrations for existing databases
             # Ensure "assistant_id" column exists in chatbots table to satisfy tests and server logic
             try:
@@ -109,14 +110,18 @@ class VeuPlusDatabase:
                 CREATE TABLE IF NOT EXISTS voicebots (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
-                    voice_model_id TEXT NOT NULL,
-                    llm_provider TEXT NOT NULL DEFAULT 'transformers',
-                    llm_model TEXT NOT NULL DEFAULT 'microsoft/DialoGPT-medium',
-                    model_name TEXT NOT NULL,
-                    temperature REAL DEFAULT 0.7,
-                    system_prompt TEXT,
-                    api_key TEXT,
-                    knowledge_base_ids TEXT,
+                    description TEXT,
+                    voice_id TEXT NOT NULL,
+                    chatbot_id TEXT NOT NULL,
+                    language TEXT DEFAULT 'ca',
+                    speed REAL DEFAULT 1.0,
+                    pitch REAL DEFAULT 1.0,
+                    stability REAL DEFAULT 0.75,
+                    similarity_boost REAL DEFAULT 0.75,
+                    style REAL DEFAULT 0.0,
+                    use_speaker_boost BOOLEAN DEFAULT TRUE,
+                    pronunciation_dictionary TEXT,
+                    voice_settings TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT,
                     status TEXT DEFAULT 'active',
@@ -125,7 +130,8 @@ class VeuPlusDatabase:
                     embed_code TEXT,
                     sip_enabled BOOLEAN DEFAULT FALSE,
                     sip_number TEXT,
-                    FOREIGN KEY (voice_model_id) REFERENCES voice_models (id)
+                    FOREIGN KEY (voice_id) REFERENCES voice_models(id),
+                    FOREIGN KEY (chatbot_id) REFERENCES chatbots(id)
                 )
             """)
             
@@ -199,6 +205,19 @@ class VeuPlusDatabase:
                 )
             """)
             
+            # ConvHi webhook events table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS convhi_webhook_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    call_id TEXT,
+                    agent_id TEXT,
+                    status TEXT,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            
             # Bot Embeddings Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS bot_embeddings (
@@ -232,6 +251,71 @@ class VeuPlusDatabase:
                     total_calls INTEGER DEFAULT 0,
                     total_minutes REAL DEFAULT 0.0
                 )
+            """)
+            
+            # ConvHi Agents Table (PERSISTENT STORAGE)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS convhi_agents (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    llm_provider TEXT NOT NULL,
+                    llm_model TEXT NOT NULL,
+                    api_key TEXT,
+                    voice_system TEXT NOT NULL,
+                    voice_id TEXT NOT NULL,
+                    external_voice_api TEXT,
+                    language TEXT NOT NULL,
+                    knowledge_base_enabled BOOLEAN DEFAULT TRUE,
+                    turn_taking_enabled BOOLEAN DEFAULT TRUE,
+                    asr_enabled BOOLEAN DEFAULT TRUE,
+                    monitoring_enabled BOOLEAN DEFAULT TRUE,
+                    temperature REAL DEFAULT 0.7,
+                    max_tokens INTEGER DEFAULT 1000,
+                    voice_speed REAL DEFAULT 1.0,
+                    settings TEXT,
+                    dynamic_variables TEXT,
+                    overrides TEXT,
+                    rag_enabled BOOLEAN DEFAULT TRUE,
+                    rag_top_k INTEGER DEFAULT 5,
+                    first_message TEXT,
+                    disable_interruptions BOOLEAN DEFAULT FALSE,
+                    enabled_tools TEXT,
+                    additional_languages TEXT,
+                    language_auto_detect BOOLEAN DEFAULT FALSE,
+                    max_response_length INTEGER DEFAULT 500,
+                    stop_sequences TEXT,
+                    top_p REAL DEFAULT 1.0,
+                    frequency_penalty REAL DEFAULT 0.0,
+                    presence_penalty REAL DEFAULT 0.0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT
+                )
+            """)
+            
+            # ConvHi Conversations Table (PERSISTENT STORAGE)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS convhi_conversations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_id TEXT NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    message_type TEXT DEFAULT 'text',
+                    metadata TEXT,
+                    FOREIGN KEY (agent_id) REFERENCES convhi_agents(id)
+                )
+            """)
+            
+            # Índex per millorar consultes
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_convhi_agent_id 
+                ON convhi_agents(id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_convhi_conversation_agent 
+                ON convhi_conversations(agent_id, conversation_id)
             """)
             
             conn.commit()
@@ -460,7 +544,20 @@ class VeuPlusDatabase:
         """Log API usage for analytics"""
         usage_data['timestamp'] = datetime.now().isoformat()
         self.execute_insert('api_usage', usage_data)
-    
+
+    def log_convhi_event(self, event_type: str, payload: Dict[str, Any], call_id: Optional[str] = None, agent_id: Optional[str] = None, status: Optional[str] = None) -> int:
+        """Persist ConvHi webhook event and return row id"""
+        record = {
+            'event_type': event_type,
+            'call_id': call_id,
+            'agent_id': agent_id,
+            'status': status,
+            'payload': json.dumps(payload, ensure_ascii=False),
+            'created_at': datetime.utcnow().isoformat(),
+        }
+        inserted = self.execute_insert('convhi_webhook_events', record)
+        return int(inserted) if inserted is not None else -1
+
     def get_usage_analytics(self, start_date: str = None, end_date: str = None) -> Dict[str, Any]:
         """Get usage analytics"""
         where_clause = "1=1"
@@ -495,5 +592,109 @@ class VeuPlusDatabase:
             'period': f"{start_date} to {end_date}" if start_date and end_date else "all time"
         }
 
+    # ConvHi Agents Methods (PERSISTENT STORAGE)
+    def save_convhi_agent(self, agent_data: Dict[str, Any]) -> str:
+        """Save or update ConvHi agent"""
+        # Convert complex fields to JSON
+        agent_data = dict(agent_data)  # Make a copy
+        for field in ['settings', 'dynamic_variables', 'overrides', 'stop_sequences']:
+            if field in agent_data and isinstance(agent_data[field], (dict, list)):
+                agent_data[field] = json.dumps(agent_data[field], ensure_ascii=False)
+        if 'enabled_tools' in agent_data and isinstance(agent_data['enabled_tools'], list):
+            agent_data['enabled_tools'] = json.dumps(agent_data['enabled_tools'])
+        
+        agent_data['created_at'] = datetime.now().isoformat()
+        agent_data['updated_at'] = datetime.now().isoformat()
+        
+        # Check if agent exists
+        agent_id = agent_data['id']
+        existing = self.get_convhi_agent(agent_id)
+        
+        if existing:
+            # Update (remove 'id' from data dict for update)
+            update_data = {k: v for k, v in agent_data.items() if k != 'id'}
+            self.execute_update('convhi_agents', update_data, 'id = ?', (agent_id,))
+        else:
+            # Insert
+            self.execute_insert('convhi_agents', agent_data)
+        
+        return agent_id
+    
+    def get_convhi_agent(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """Get ConvHi agent by ID"""
+        agents = self.execute_query("SELECT * FROM convhi_agents WHERE id = ?", (agent_id,))
+        if agents:
+            agent = dict(agents[0])
+            # Deserialize JSON fields
+            for field in ['settings', 'dynamic_variables', 'overrides', 'stop_sequences']:
+                if agent.get(field):
+                    try:
+                        agent[field] = json.loads(agent[field])
+                    except:
+                        agent[field] = {} if field != 'stop_sequences' else []
+            if agent.get('enabled_tools'):
+                try:
+                    agent['enabled_tools'] = json.loads(agent['enabled_tools'])
+                except:
+                    agent['enabled_tools'] = []
+            return agent
+        return None
+    
+    def get_all_convhi_agents(self) -> List[Dict[str, Any]]:
+        """Get all ConvHi agents"""
+        agents = self.execute_query("SELECT * FROM convhi_agents ORDER BY created_at DESC")
+        for agent in agents:
+            # Deserialize JSON fields
+            for field in ['settings', 'dynamic_variables', 'overrides', 'stop_sequences']:
+                if agent.get(field):
+                    try:
+                        agent[field] = json.loads(agent[field])
+                    except:
+                        agent[field] = {} if field != 'stop_sequences' else []
+            if agent.get('enabled_tools'):
+                try:
+                    agent['enabled_tools'] = json.loads(agent['enabled_tools'])
+                except:
+                    agent['enabled_tools'] = []
+        return agents
+    
+    def delete_convhi_agent(self, agent_id: str) -> bool:
+        """Delete ConvHi agent and all its conversations"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Delete conversations first (foreign key constraint)
+            cursor.execute("DELETE FROM convhi_conversations WHERE agent_id = ?", (agent_id,))
+            # Delete agent
+            cursor.execute("DELETE FROM convhi_agents WHERE id = ?", (agent_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+    
+    def save_conversation_message(self, agent_id: str, conversation_id: str, role: str, content: str, message_type: str = 'text', metadata: Dict[str, Any] = None):
+        """Save conversation message"""
+        message_data = {
+            'agent_id': agent_id,
+            'conversation_id': conversation_id,
+            'timestamp': datetime.now().isoformat(),
+            'role': role,
+            'content': content,
+            'message_type': message_type,
+            'metadata': json.dumps(metadata or {}, ensure_ascii=False)
+        }
+        self.execute_insert('convhi_conversations', message_data)
+    
+    def get_conversation_history(self, agent_id: str, conversation_id: str) -> List[Dict[str, Any]]:
+        """Get conversation history"""
+        messages = self.execute_query(
+            "SELECT * FROM convhi_conversations WHERE agent_id = ? AND conversation_id = ? ORDER BY timestamp ASC",
+            (agent_id, conversation_id)
+        )
+        for msg in messages:
+            if msg.get('metadata'):
+                try:
+                    msg['metadata'] = json.loads(msg['metadata'])
+                except:
+                    msg['metadata'] = {}
+        return messages
+
 # Global database instance
-db = VeuPlusDatabase()
+db = Veuندگان

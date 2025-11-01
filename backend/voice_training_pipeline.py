@@ -62,7 +62,7 @@ class TrainingRequest(BaseModel):
     training_config: Dict[str, Any] = {}
     dataset_path: Optional[str] = None
     dataset_names: Optional[List[str]] = None
-    trainer: Optional[str] = "simulate"  # simulate | coqui_xtts
+    trainer: Optional[str] = "coqui_xtts"  # simulate | coqui_xtts
 
 class TrainingJob(BaseModel):
     job_id: str
@@ -88,6 +88,19 @@ class TrainingProgress(BaseModel):
     loss: float
     gpu_utilization: float
     message: str
+
+
+class PromptSpecRequest(BaseModel):
+    prompt: str
+    language: Optional[str] = None
+
+class PromptSpecResponse(BaseModel):
+    name: str
+    language: str
+    dialect: Optional[str]
+    use_catalan_dataset: bool
+    training_config: Dict[str, Any]
+    notes: str
 
 # WebSocket Connection Manager
 class TrainingConnectionManager:
@@ -181,6 +194,61 @@ DEFAULT_TRAINING_CONFIG = {
     "top_k": 50,
     "top_p": 0.85
 }
+
+@training_router.post("/prompt-spec", response_model=PromptSpecResponse)
+async def generate_prompt_spec(req: PromptSpecRequest) -> PromptSpecResponse:
+    """Generate a reasonable training spec from a natural language prompt (LLM-inspired, rule-based)."""
+    text = (req.prompt or "").lower()
+    lang = (req.language or "").lower()
+    if not lang:
+        if "catal" in text:
+            lang = "ca"
+        elif "span" in text or "espa" in text:
+            lang = "es"
+        elif "french" in text or "franc" in text:
+            lang = "fr"
+        elif "english" in text or "ingl" in text:
+            lang = "en"
+        else:
+            lang = "ca"
+
+    dialect = None
+    if lang == "ca":
+        if "valenc" in text:
+            dialect = "valencian"
+        elif "balear" in text:
+            dialect = "balearic"
+        else:
+            dialect = "central"
+
+    # Map tone adjectives to config tweaks
+    cfg = DEFAULT_TRAINING_CONFIG.copy()
+    if any(k in text for k in ["warm", "calid", "càlid", "suave"]):
+        cfg["temperature"] = 0.8
+        cfg["top_p"] = 0.9
+    if any(k in text for k in ["crisp", "claro", "nítid", "clear"]):
+        cfg["repetition_penalty"] = 4.0
+    if any(k in text for k in ["expressive", "expres", "emocion"]):
+        cfg["num_epochs"] = max(60, cfg.get("num_epochs", 50))
+
+    use_catalan = (lang == "ca")
+    name = "Voice Model"
+    if any(k in text for k in ["male", "masc", "home"]):
+        name = "Catalan Male Voice" if use_catalan else "Custom Male Voice"
+    elif any(k in text for k in ["female", "fem", "dona"]):
+        name = "Catalan Female Voice" if use_catalan else "Custom Female Voice"
+    else:
+        name = "Catalan Voice" if use_catalan else "Custom Voice"
+
+    notes = "Heuristic config derived from prompt; adjust as needed."
+    return PromptSpecResponse(
+        name=name,
+        language=lang,
+        dialect=dialect,
+        use_catalan_dataset=use_catalan,
+        training_config=cfg,
+        notes=notes,
+    )
 
 # Utility Functions
 def get_gpu_utilization():
@@ -710,7 +778,7 @@ async def execute_training_pipeline(job_id: str, request: TrainingRequest):
         preprocessed_path = await preprocess_audio_data(job_id, dataset_path, request.language)
         
         # Train model
-        model_path = await train_xtts_model(job_id, preprocessed_path, request.training_config, trainer=(request.trainer or "simulate"))
+        model_path = await train_xtts_model(job_id, preprocessed_path, request.training_config, trainer=(request.trainer or "coqui_xtts"))
         
         logger.info(f"Training pipeline completed for job {job_id}")
         

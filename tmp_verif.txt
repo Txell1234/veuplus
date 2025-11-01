@@ -1,0 +1,7 @@
+﻿{'webhooks': [200, {'received': True, 'type': 'call.completed'}],
+ 'widget': [200,
+            {'agent_id': 'demo',
+             'exp': 1760999190,
+             'payload': 'agent_id=demo&exp=1760999190',
+             'signature': 'dfc19940080cb566a88ea5c12f78aeca12141e487713c92b0989ad4d707e12d2',
+             'success': True}]}

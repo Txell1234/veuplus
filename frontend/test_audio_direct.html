@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Audio Directe</title>
+</head>
+<body>
+    <h1>Test Audio Directe</h1>
+    <button onclick="testAudio()">Test Audio</button>
+    <audio id="audioPlayer" controls></audio>
+    <div id="result"></div>
+
+    <script>
+        async function testAudio() {
+            const resultDiv = document.getElementById('result');
+            const audioPlayer = document.getElementById('audioPlayer');
+            
+            try {
+                resultDiv.innerHTML = '🔍 Testant àudio...';
+                
+                // Test directe amb l'endpoint
+                const response = await fetch('/api/edge-tts/synthesize-simple', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: 'Hola, aquesta és una prova.',
+                        voice_id: 'es-ES-ElviraNeural'
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Resposta:', data);
+                
+                if (data.success && data.audio_base64) {
+                    const audioUrl = `data:audio/wav;base64,${data.audio_base64}`;
+                    audioPlayer.src = audioUrl;
+                    
+                    audioPlayer.oncanplaythrough = () => {
+                        resultDiv.innerHTML = '✅ Àudio carregat correctament!';
+                        audioPlayer.play();
+                    };
+                    
+                    audioPlayer.onerror = (error) => {
+                        resultDiv.innerHTML = '❌ Error carregant àudio: ' + error;
+                    };
+                    
+                } else {
+                    resultDiv.innerHTML = '❌ Error: ' + (data.error || 'Resposta invàlida');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = '❌ Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

@@ -1,0 +1,570 @@
+{
+  "voices": [
+    {
+      "id": "dona_catalana",
+      "name": "Voz femenina catalana - Barcelona",
+      "description": "Voz femenina catalana - Barcelona (Grabación 2)",
+      "gender": "female",
+      "source": "training_data",
+      "mock": true,
+      "notes": "Utilitza enregistrament processat. El text d'entrada s'ignora fins que hi hagi model XTTS.",
+      "duration": 29.466122448979593,
+      "sample_rate": 22050,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\dona_catalana\\processed.wav"
+    },
+    {
+      "id": "senyor_catala_1",
+      "name": "Voz masculina catalana - Barcelona",
+      "description": "Voz masculina catalana - Barcelona (GrabaciÃ³n 1)",
+      "gender": "male",
+      "source": "training_data",
+      "mock": true,
+      "notes": "Utilitza enregistrament processat. El text d'entrada s'ignora fins que hi hagi model XTTS.",
+      "duration": 26.671020408163265,
+      "sample_rate": 22050,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\senyor_catala_1\\processed.wav"
+    },
+    {
+      "id": "senyor_catala_2",
+      "name": "Voz masculina catalana - Barcelona",
+      "description": "Voz masculina catalana - Barcelona (Grabación 3)",
+      "gender": "male",
+      "source": "training_data",
+      "mock": true,
+      "notes": "Utilitza enregistrament processat. El text d'entrada s'ignora fins que hi hagi model XTTS.",
+      "duration": 14.680816326530612,
+      "sample_rate": 22050,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\senyor_catala_2\\processed.wav"
+    },
+    {
+      "id": "senyor_catala_extended",
+      "name": "Voz masculina catalana - Barcelona",
+      "description": "Voz masculina catalana - Barcelona (Grabación 4 - Extendida)",
+      "gender": "male",
+      "source": "training_data",
+      "mock": true,
+      "notes": "Utilitza enregistrament processat. El text d'entrada s'ignora fins que hi hagi model XTTS.",
+      "duration": 23.875918367346937,
+      "sample_rate": 22050,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\senyor_catala_extended\\processed.wav"
+    },
+    {
+      "id": "0a954d49-ba38-4b63-a69a-19d5fd1ce993",
+      "name": "0a954d49-ba38-4b63-a69a-19d5fd1ce993",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\0a954d49-ba38-4b63-a69a-19d5fd1ce993\\sample.wav"
+    },
+    {
+      "id": "1218aac6-51c8-457a-b07e-c65c112c19d1",
+      "name": "1218aac6-51c8-457a-b07e-c65c112c19d1",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1218aac6-51c8-457a-b07e-c65c112c19d1\\sample.wav"
+    },
+    {
+      "id": "3ab7f994-4cec-4aec-9680-707f04a71170",
+      "name": "3ab7f994-4cec-4aec-9680-707f04a71170",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\3ab7f994-4cec-4aec-9680-707f04a71170\\sample.wav"
+    },
+    {
+      "id": "55e9362c-33d2-4513-a73a-528a15df53a9",
+      "name": "55e9362c-33d2-4513-a73a-528a15df53a9",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\55e9362c-33d2-4513-a73a-528a15df53a9\\sample.wav"
+    },
+    {
+      "id": "5b270056-a7c8-4758-891c-645f10185080",
+      "name": "5b270056-a7c8-4758-891c-645f10185080",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\5b270056-a7c8-4758-891c-645f10185080\\test_voice.wav"
+    },
+    {
+      "id": "76d5d44b-7cca-4f42-a0c0-d3437db0603e",
+      "name": "76d5d44b-7cca-4f42-a0c0-d3437db0603e",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\76d5d44b-7cca-4f42-a0c0-d3437db0603e\\test_voice.wav"
+    },
+    {
+      "id": "78cf7199-5b83-4b2e-87a6-1f8d83217992",
+      "name": "78cf7199-5b83-4b2e-87a6-1f8d83217992",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\78cf7199-5b83-4b2e-87a6-1f8d83217992\\test_audio.wav"
+    },
+    {
+      "id": "918da5a6-03b0-4868-87a8-4f6ca50f0b73",
+      "name": "918da5a6-03b0-4868-87a8-4f6ca50f0b73",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\918da5a6-03b0-4868-87a8-4f6ca50f0b73\\test_voice.wav"
+    },
+    {
+      "id": "a2dffe3e-ddf3-4567-aa02-e4a7c1a9652a",
+      "name": "a2dffe3e-ddf3-4567-aa02-e4a7c1a9652a",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\a2dffe3e-ddf3-4567-aa02-e4a7c1a9652a\\sample.wav"
+    },
+    {
+      "id": "abf55c53-16b9-4a32-9627-85e9fed1298c",
+      "name": "abf55c53-16b9-4a32-9627-85e9fed1298c",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\abf55c53-16b9-4a32-9627-85e9fed1298c\\sample.wav"
+    },
+    {
+      "id": "b66b4f0f-291b-4682-a492-de1fb72877db",
+      "name": "b66b4f0f-291b-4682-a492-de1fb72877db",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\b66b4f0f-291b-4682-a492-de1fb72877db\\sample.wav"
+    },
+    {
+      "id": "c1d4a518-3cdf-4f1f-9d75-8430638eb2a4",
+      "name": "c1d4a518-3cdf-4f1f-9d75-8430638eb2a4",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c1d4a518-3cdf-4f1f-9d75-8430638eb2a4\\sample.wav"
+    },
+    {
+      "id": "c76b0786-8e84-4d82-9aa8-35cda933f8fe",
+      "name": "c76b0786-8e84-4d82-9aa8-35cda933f8fe",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c76b0786-8e84-4d82-9aa8-35cda933f8fe\\phonetic_test.wav"
+    },
+    {
+      "id": "ca2ca3ee-3b9b-48fc-8c4d-92217cbe9bcc",
+      "name": "ca2ca3ee-3b9b-48fc-8c4d-92217cbe9bcc",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\ca2ca3ee-3b9b-48fc-8c4d-92217cbe9bcc\\test_voice.wav"
+    },
+    {
+      "id": "d3daca08-7dde-4f6e-89ed-893f7ed084b5",
+      "name": "d3daca08-7dde-4f6e-89ed-893f7ed084b5",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\d3daca08-7dde-4f6e-89ed-893f7ed084b5\\test_voice.wav"
+    },
+    {
+      "id": "da50195b-c375-41ce-a8ea-59e7914da7fd",
+      "name": "da50195b-c375-41ce-a8ea-59e7914da7fd",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\da50195b-c375-41ce-a8ea-59e7914da7fd\\sample.wav"
+    },
+    {
+      "id": "e1d3f754-5f03-49b3-8dee-c87b2d5b5f03",
+      "name": "e1d3f754-5f03-49b3-8dee-c87b2d5b5f03",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\e1d3f754-5f03-49b3-8dee-c87b2d5b5f03\\sample.wav"
+    },
+    {
+      "id": "e85475ef-ec43-41de-9006-29c06cc9eae4",
+      "name": "e85475ef-ec43-41de-9006-29c06cc9eae4",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\e85475ef-ec43-41de-9006-29c06cc9eae4\\sample.wav"
+    },
+    {
+      "id": "f5894a2c-b3c2-4410-981f-f134b1bafd3d",
+      "name": "f5894a2c-b3c2-4410-981f-f134b1bafd3d",
+      "description": "Mostra importada de voice_models (mock).",
+      "gender": null,
+      "source": "voice_models",
+      "mock": true,
+      "notes": "Mostra extreta de voice_models. Ajustar quan hi hagi model neuronal.",
+      "duration": null,
+      "sample_rate": null,
+      "audio_path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\f5894a2c-b3c2-4410-981f-f134b1bafd3d\\test_voice.wav"
+    }
+  ],
+  "voice_model_files": [
+    {
+      "name": "059ba355-6d84-4b28-a514-a35bef1b5934.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\059ba355-6d84-4b28-a514-a35bef1b5934.json",
+      "files": []
+    },
+    {
+      "name": "059ba355-6d84-4b28-a514-a35bef1b5934_sample_1.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\059ba355-6d84-4b28-a514-a35bef1b5934_sample_1.wav",
+      "files": []
+    },
+    {
+      "name": "059ba355-6d84-4b28-a514-a35bef1b5934_sample_2.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\059ba355-6d84-4b28-a514-a35bef1b5934_sample_2.wav",
+      "files": []
+    },
+    {
+      "name": "059ba355-6d84-4b28-a514-a35bef1b5934_sample_3.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\059ba355-6d84-4b28-a514-a35bef1b5934_sample_3.wav",
+      "files": []
+    },
+    {
+      "name": "0a954d49-ba38-4b63-a69a-19d5fd1ce993",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\0a954d49-ba38-4b63-a69a-19d5fd1ce993",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "1218aac6-51c8-457a-b07e-c65c112c19d1",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1218aac6-51c8-457a-b07e-c65c112c19d1",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "1ded9b39-8563-4e5f-be28-f57838d09d66.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1ded9b39-8563-4e5f-be28-f57838d09d66.json",
+      "files": []
+    },
+    {
+      "name": "1ded9b39-8563-4e5f-be28-f57838d09d66_sample_1.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1ded9b39-8563-4e5f-be28-f57838d09d66_sample_1.wav",
+      "files": []
+    },
+    {
+      "name": "1ded9b39-8563-4e5f-be28-f57838d09d66_sample_2.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1ded9b39-8563-4e5f-be28-f57838d09d66_sample_2.wav",
+      "files": []
+    },
+    {
+      "name": "1ded9b39-8563-4e5f-be28-f57838d09d66_sample_3.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\1ded9b39-8563-4e5f-be28-f57838d09d66_sample_3.wav",
+      "files": []
+    },
+    {
+      "name": "25c9044f-cb6f-49bc-b836-6c111c011f6a_ultimate.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\25c9044f-cb6f-49bc-b836-6c111c011f6a_ultimate.json",
+      "files": []
+    },
+    {
+      "name": "2cc80a23-c03b-4e57-806b-752a8b8f24b5.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\2cc80a23-c03b-4e57-806b-752a8b8f24b5.json",
+      "files": []
+    },
+    {
+      "name": "2cc80a23-c03b-4e57-806b-752a8b8f24b5_sample.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\2cc80a23-c03b-4e57-806b-752a8b8f24b5_sample.wav",
+      "files": []
+    },
+    {
+      "name": "3ab7f994-4cec-4aec-9680-707f04a71170",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\3ab7f994-4cec-4aec-9680-707f04a71170",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "40fb96a2-e32d-4363-9815-02e707468f3c.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\40fb96a2-e32d-4363-9815-02e707468f3c.json",
+      "files": []
+    },
+    {
+      "name": "40fb96a2-e32d-4363-9815-02e707468f3c_sample_1.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\40fb96a2-e32d-4363-9815-02e707468f3c_sample_1.wav",
+      "files": []
+    },
+    {
+      "name": "40fb96a2-e32d-4363-9815-02e707468f3c_sample_2.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\40fb96a2-e32d-4363-9815-02e707468f3c_sample_2.wav",
+      "files": []
+    },
+    {
+      "name": "40fb96a2-e32d-4363-9815-02e707468f3c_sample_3.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\40fb96a2-e32d-4363-9815-02e707468f3c_sample_3.wav",
+      "files": []
+    },
+    {
+      "name": "55e9362c-33d2-4513-a73a-528a15df53a9",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\55e9362c-33d2-4513-a73a-528a15df53a9",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "57b3d566-ae3a-456a-a131-4240296b9962.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\57b3d566-ae3a-456a-a131-4240296b9962.json",
+      "files": []
+    },
+    {
+      "name": "57b3d566-ae3a-456a-a131-4240296b9962_sample.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\57b3d566-ae3a-456a-a131-4240296b9962_sample.wav",
+      "files": []
+    },
+    {
+      "name": "5b270056-a7c8-4758-891c-645f10185080",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\5b270056-a7c8-4758-891c-645f10185080",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "76d5d44b-7cca-4f42-a0c0-d3437db0603e",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\76d5d44b-7cca-4f42-a0c0-d3437db0603e",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "78cf7199-5b83-4b2e-87a6-1f8d83217992",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\78cf7199-5b83-4b2e-87a6-1f8d83217992",
+      "files": [
+        "test_audio.wav"
+      ]
+    },
+    {
+      "name": "918da5a6-03b0-4868-87a8-4f6ca50f0b73",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\918da5a6-03b0-4868-87a8-4f6ca50f0b73",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "a2dffe3e-ddf3-4567-aa02-e4a7c1a9652a",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\a2dffe3e-ddf3-4567-aa02-e4a7c1a9652a",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "abf55c53-16b9-4a32-9627-85e9fed1298c",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\abf55c53-16b9-4a32-9627-85e9fed1298c",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "ad0cfd85-1d02-4097-888f-9c206cd97c84.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\ad0cfd85-1d02-4097-888f-9c206cd97c84.json",
+      "files": []
+    },
+    {
+      "name": "ad0cfd85-1d02-4097-888f-9c206cd97c84_sample.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\ad0cfd85-1d02-4097-888f-9c206cd97c84_sample.wav",
+      "files": []
+    },
+    {
+      "name": "b66b4f0f-291b-4682-a492-de1fb72877db",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\b66b4f0f-291b-4682-a492-de1fb72877db",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "c1d4a518-3cdf-4f1f-9d75-8430638eb2a4",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c1d4a518-3cdf-4f1f-9d75-8430638eb2a4",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "c4769bd6-1417-4b35-a1b6-b69da2f71f93.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c4769bd6-1417-4b35-a1b6-b69da2f71f93.json",
+      "files": []
+    },
+    {
+      "name": "c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_1.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_1.wav",
+      "files": []
+    },
+    {
+      "name": "c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_2.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_2.wav",
+      "files": []
+    },
+    {
+      "name": "c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_3.wav",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c4769bd6-1417-4b35-a1b6-b69da2f71f93_sample_3.wav",
+      "files": []
+    },
+    {
+      "name": "c76b0786-8e84-4d82-9aa8-35cda933f8fe",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\c76b0786-8e84-4d82-9aa8-35cda933f8fe",
+      "files": [
+        "phonetic_test.wav"
+      ]
+    },
+    {
+      "name": "ca2ca3ee-3b9b-48fc-8c4d-92217cbe9bcc",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\ca2ca3ee-3b9b-48fc-8c4d-92217cbe9bcc",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "catalan_reference_with_text.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\catalan_reference_with_text.mp3",
+      "files": []
+    },
+    {
+      "name": "d3daca08-7dde-4f6e-89ed-893f7ed084b5",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\d3daca08-7dde-4f6e-89ed-893f7ed084b5",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "da50195b-c375-41ce-a8ea-59e7914da7fd",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\da50195b-c375-41ce-a8ea-59e7914da7fd",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "ded5924d-0bf0-4b5a-95f6-7a68cd22bd21_ultimate.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\ded5924d-0bf0-4b5a-95f6-7a68cd22bd21_ultimate.json",
+      "files": []
+    },
+    {
+      "name": "e1d3f754-5f03-49b3-8dee-c87b2d5b5f03",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\e1d3f754-5f03-49b3-8dee-c87b2d5b5f03",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "e85475ef-ec43-41de-9006-29c06cc9eae4",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\e85475ef-ec43-41de-9006-29c06cc9eae4",
+      "files": [
+        "sample.wav"
+      ]
+    },
+    {
+      "name": "f4b142a0-95ee-4996-8c7b-fd49274a35b5_ultimate.json",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\f4b142a0-95ee-4996-8c7b-fd49274a35b5_ultimate.json",
+      "files": []
+    },
+    {
+      "name": "f5894a2c-b3c2-4410-981f-f134b1bafd3d",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\f5894a2c-b3c2-4410-981f-f134b1bafd3d",
+      "files": [
+        "test_voice.wav"
+      ]
+    },
+    {
+      "name": "male_voice_sample_2.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\male_voice_sample_2.mp3",
+      "files": []
+    },
+    {
+      "name": "senyor_catala_sample_2.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\senyor_catala_sample_2.mp3",
+      "files": []
+    },
+    {
+      "name": "senyor_catala_sample_3.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\senyor_catala_sample_3.mp3",
+      "files": []
+    },
+    {
+      "name": "user_reference_voice.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\user_reference_voice.mp3",
+      "files": []
+    },
+    {
+      "name": "user_reference_voice_2.mp3",
+      "path": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\voice_models\\user_reference_voice_2.mp3",
+      "files": []
+    }
+  ]
+}

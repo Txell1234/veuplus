@@ -1,0 +1,982 @@
+#!/usr/bin/env python3
+"""
+ConvHi Knowledge Base System - Sistema complet de base de coneixement
+Suport per fitxers (PDF, TXT, DOCX, HTML, EPUB), URLs i text manual
+"""
+
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form
+from pydantic import BaseModel, HttpUrl
+from typing import Dict, Any, List, Optional, Union, Literal
+import logging
+import asyncio
+import aiohttp
+import aiofiles
+import os
+import tempfile
+import hashlib
+import json
+from datetime import datetime
+from pathlib import Path
+import mimetypes
+from uuid import uuid4
+from io import BytesIO
+
+from .convhi_embeddings import embedding_engine, SemanticCandidate
+
+logger = logging.getLogger("veuplus.knowledge")
+
+router = APIRouter(prefix="/api/convhi/knowledge", tags=["ConvHi Knowledge Base"])
+
+# Models
+class KnowledgeItem(BaseModel):
+    id: str
+    agent_id: str
+    title: str
+    content: str
+    content_type: str  # text, file, url
+    source: str  # file path, URL, or "manual"
+    file_type: Optional[str] = None  # pdf, txt, docx, html, epub
+    size: Optional[int] = None
+    language: str = "auto"
+    tags: List[str] = []
+    category: str = "general"
+    confidence: float = 1.0
+    created_at: str
+    updated_at: str
+    metadata: Dict[str, Any] = {}
+
+class KnowledgeSearchRequest(BaseModel):
+    agent_id: str
+    query: str
+    max_results: int = 10
+    min_confidence: float = 0.0
+    categories: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    content_types: Optional[List[str]] = None
+
+class KnowledgeSearchResult(BaseModel):
+    item: KnowledgeItem
+    relevance_score: float
+    matched_snippets: List[str]
+
+class KnowledgeConnectorRequest(BaseModel):
+    agent_id: str
+    name: str
+    connector_type: str  # notion, sharepoint, custom, etc.
+    config: Dict[str, Any] = {}
+
+class KnowledgeJobRequest(BaseModel):
+    agent_id: str
+    source_type: Literal["text", "url", "connector"]
+    payload: Dict[str, Any]
+
+# In-memory storage (en producció usar base de dades)
+knowledge_storage = {
+    "items": {},
+    "agent_knowledge": {},  # agent_id -> [item_ids]
+    "search_index": {}  # Para implementar cerca semàntica
+}
+
+knowledge_connectors: Dict[str, List[Dict[str, Any]]] = {}
+ingestion_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+class KnowledgeConnector(BaseModel):
+    id: str
+    agent_id: str
+    name: str
+    connector_type: str  # notion, sharepoint, custom...
+    config: Dict[str, Any] = {}
+    status: str = "configured"
+    created_at: str
+    updated_at: str
+
+
+class KnowledgeIngestionJob(BaseModel):
+    id: str
+    agent_id: str
+    source_type: Literal["text", "url", "file", "connector"]
+    status: str
+    created_at: str
+    updated_at: str
+    detail: Dict[str, Any] = {}
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+def _connector_list(agent_id: str) -> List[Dict[str, Any]]:
+    return knowledge_connectors.setdefault(agent_id, [])
+
+
+def _store_connector(connector: Dict[str, Any]) -> Dict[str, Any]:
+    connectors = _connector_list(connector["agent_id"])
+    connectors.append(connector)
+    return connector
+
+
+def _create_job(agent_id: str, source_type: str, detail: Dict[str, Any]) -> Dict[str, Any]:
+    job_id = f"job_{uuid4().hex}"
+    now = datetime.now().isoformat()
+    job = {
+        "id": job_id,
+        "agent_id": agent_id,
+        "source_type": source_type,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "detail": detail,
+        "result": None,
+        "error": None,
+    }
+    ingestion_jobs[job_id] = job
+    return job
+
+
+async def _run_job(job_id: str, coroutine_fn):
+    job = ingestion_jobs.get(job_id)
+    if not job:
+        return
+    job["status"] = "processing"
+    job["updated_at"] = datetime.now().isoformat()
+    try:
+        result = await coroutine_fn()
+        if hasattr(result, "dict"):
+            result = result.dict()
+        job["status"] = "completed"
+        job["result"] = result
+    except Exception as exc:
+        job["status"] = "failed"
+        job["error"] = str(exc)
+        logger.error(f"Error processant job {job_id}: {exc}")
+    finally:
+        job["updated_at"] = datetime.now().isoformat()
+
+class KnowledgeBaseEngine:
+    def __init__(self):
+        self.supported_file_types = {
+            'pdf': 'application/pdf',
+            'txt': 'text/plain',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'html': 'text/html',
+            'epub': 'application/epub+zip'
+        }
+        self.max_file_size = 20 * 1024 * 1024  # 20MB
+    
+    async def add_text_knowledge(self, agent_id: str, title: str, content: str, 
+                                tags: List[str] = None, category: str = "general") -> KnowledgeItem:
+        """Afegir coneixement de text manual"""
+        try:
+            item_id = self._generate_item_id(agent_id, title, content)
+            
+            knowledge_item = KnowledgeItem(
+                id=item_id,
+                agent_id=agent_id,
+                title=title,
+                content=content,
+                content_type="text",
+                source="manual",
+                size=len(content.encode('utf-8')),
+                language=self._detect_language(content),
+                tags=tags or [],
+                category=category,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat()
+            )
+            
+            # Guardar a l'emmagatzematge
+            knowledge_storage["items"][item_id] = knowledge_item.dict()
+            
+            # Afegir a l'agent
+            if agent_id not in knowledge_storage["agent_knowledge"]:
+                knowledge_storage["agent_knowledge"][agent_id] = []
+            knowledge_storage["agent_knowledge"][agent_id].append(item_id)
+            
+            # Actualitzar índexs
+            await self._update_search_index(item_id, content)
+            await embedding_engine.index_document(agent_id, item_id, content)
+            
+            logger.info(f"📚 Coneixement de text afegit: {title}")
+            return knowledge_item
+            
+        except Exception as e:
+            logger.error(f"Error afegint coneixement de text: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def add_file_knowledge(self, agent_id: str, file: UploadFile, 
+                                title: Optional[str] = None, tags: List[str] = None, 
+                                category: str = "general") -> KnowledgeItem:
+        """Afegir coneixement des de fitxer"""
+        try:
+            # Validar tipus de fitxer
+            file_extension = Path(file.filename).suffix.lower().lstrip('.')
+            if file_extension not in self.supported_file_types:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Tipus de fitxer no suportat: {file_extension}. Suportats: {list(self.supported_file_types.keys())}"
+                )
+            
+            # Validar mida
+            file_content = await file.read()
+            if len(file_content) > self.max_file_size:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Fitxer massa gran: {len(file_content)} bytes. Màxim: {self.max_file_size} bytes"
+                )
+            
+            # Processar contingut segons el tipus
+            content = await self._extract_file_content(file_content, file_extension)
+            
+            # Generar ID i títol
+            item_id = self._generate_item_id(agent_id, file.filename, content[:1000])
+            title = title or Path(file.filename).stem
+            
+            knowledge_item = KnowledgeItem(
+                id=item_id,
+                agent_id=agent_id,
+                title=title,
+                content=content,
+                content_type="file",
+                source=file.filename,
+                file_type=file_extension,
+                size=len(file_content),
+                language=self._detect_language(content),
+                tags=tags or [],
+                category=category,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat(),
+                metadata={
+                    "original_filename": file.filename,
+                    "mime_type": self.supported_file_types[file_extension]
+                }
+            )
+            
+            # Guardar a l'emmagatzematge
+            knowledge_storage["items"][item_id] = knowledge_item.dict()
+            
+            # Afegir a l'agent
+            if agent_id not in knowledge_storage["agent_knowledge"]:
+                knowledge_storage["agent_knowledge"][agent_id] = []
+            knowledge_storage["agent_knowledge"][agent_id].append(item_id)
+            
+            # Actualitzar índexs
+            await self._update_search_index(item_id, content)
+            await embedding_engine.index_document(agent_id, item_id, content)
+            
+            logger.info(f"📚 Coneixement de fitxer afegit: {file.filename}")
+            return knowledge_item
+            
+        except Exception as e:
+            logger.error(f"Error afegint coneixement de fitxer: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    async def add_file_from_bytes(
+        self,
+        agent_id: str,
+        filename: str,
+        content_type: str,
+        data: bytes,
+        title: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        category: str = "general",
+    ) -> KnowledgeItem:
+        """Helper per ingestes en segon pla a partir de bytes."""
+        upload = UploadFile(filename=filename, file=BytesIO(data))
+        upload.content_type = content_type
+        return await self.add_file_knowledge(agent_id, upload, title=title, tags=tags, category=category)
+
+    async def sync_connector(self, agent_id: str, connector: Dict[str, Any]) -> KnowledgeItem:
+        """Simular la sincronització d'un connector extern."""
+        content = (
+            f"Sincronització connector {connector['name']} ({connector['connector_type']}) "
+            f"a {datetime.now().isoformat()}"
+        )
+        return await self.add_text_knowledge(
+            agent_id=agent_id,
+            title=f"Connector {connector['name']}",
+            content=content,
+            tags=[connector['connector_type'], "connector"],
+            category="connectors",
+        )
+
+    async def add_url_knowledge(self, agent_id: str, url: str, title: Optional[str] = None,
+                               tags: List[str] = None, category: str = "general") -> KnowledgeItem:
+        """Afegir coneixement des de URL"""
+        try:
+            # Descarregar contingut de la URL
+            content = await self._fetch_url_content(url)
+            
+            # Generar ID i títol
+            item_id = self._generate_item_id(agent_id, url, content[:1000])
+            title = title or f"Contingut de {url}"
+            
+            knowledge_item = KnowledgeItem(
+                id=item_id,
+                agent_id=agent_id,
+                title=title,
+                content=content,
+                content_type="url",
+                source=url,
+                size=len(content.encode('utf-8')),
+                language=self._detect_language(content),
+                tags=tags or [],
+                category=category,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat(),
+                metadata={
+                    "url": url,
+                    "scraped_at": datetime.now().isoformat()
+                }
+            )
+            
+            # Guardar a l'emmagatzematge
+            knowledge_storage["items"][item_id] = knowledge_item.dict()
+            
+            # Afegir a l'agent
+            if agent_id not in knowledge_storage["agent_knowledge"]:
+                knowledge_storage["agent_knowledge"][agent_id] = []
+            knowledge_storage["agent_knowledge"][agent_id].append(item_id)
+            
+            # Actualitzar índexs
+            await self._update_search_index(item_id, content)
+            await embedding_engine.index_document(agent_id, item_id, content)
+            
+            logger.info(f"📚 Coneixement de URL afegit: {url}")
+            return knowledge_item
+            
+        except Exception as e:
+            logger.error(f"Error afegint coneixement de URL: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def search_knowledge(self, request: KnowledgeSearchRequest) -> List[KnowledgeSearchResult]:
+        """Cercar coneixement rellevant amb integració LLM"""
+        try:
+            agent_items = knowledge_storage["agent_knowledge"].get(request.agent_id, [])
+            results = []
+            
+            query_lower = request.query.lower()
+            query_words = set(query_lower.split())
+            
+            # Cerca bàsica per paraules clau
+            basic_results = []
+            for item_id in agent_items:
+                if item_id not in knowledge_storage["items"]:
+                    continue
+                
+                item_data = knowledge_storage["items"][item_id]
+                item = KnowledgeItem(**item_data)
+                
+                # Filtrar per confiança
+                if item.confidence < request.min_confidence:
+                    continue
+                
+                # Filtrar per categories
+                if request.categories and item.category not in request.categories:
+                    continue
+                
+                # Filtrar per tags
+                if request.tags and not any(tag in item.tags for tag in request.tags):
+                    continue
+                
+                # Filtrar per tipus de contingut
+                if request.content_types and item.content_type not in request.content_types:
+                    continue
+                
+                # Calcular puntuació de rellevància
+                relevance_score = self._calculate_relevance_score(item, query_words)
+                
+                if relevance_score > 0:
+                    # Trobar fragments rellevants
+                    matched_snippets = self._extract_relevant_snippets(item.content, query_words)
+                    
+                    basic_results.append(KnowledgeSearchResult(
+                        item=item,
+                        relevance_score=relevance_score,
+                        matched_snippets=matched_snippets
+                    ))
+            
+            # Ordenar per rellevància
+            basic_results.sort(key=lambda x: x.relevance_score, reverse=True)
+            
+            # Si hi ha resultats, millorar la cerca amb LLM
+            if basic_results:
+                try:
+                    # Usar LLM per millorar la cerca semàntica
+                    enhanced_results = await self._enhance_search_with_llm(request.query, basic_results[:10])
+                    results = enhanced_results
+                except Exception as e:
+                    logger.warning(f"Error millorant cerca amb LLM: {e}")
+                    results = basic_results
+            else:
+                results = basic_results
+            
+            # Afegir resultats semàntics (embeddings)
+            try:
+                semantic_candidates = await embedding_engine.semantic_search(
+                    agent_id=request.agent_id,
+                    query=request.query,
+                    top_k=request.max_results * 2,
+                )
+                for candidate in semantic_candidates:
+                    item_data = knowledge_storage["items"].get(candidate.item_id)
+                    if not item_data:
+                        continue
+                    if any(r.item.id == candidate.item_id for r in results):
+                        continue
+                    results.append(
+                        KnowledgeSearchResult(
+                            item=KnowledgeItem(**item_data),
+                            relevance_score=candidate.score,
+                            matched_snippets=candidate.highlights,
+                        )
+                    )
+            except Exception as exc:
+                logger.warning(f"Semantic search fallback: {exc}")
+
+            # Ordenar i limitar
+            results.sort(key=lambda r: r.relevance_score, reverse=True)
+            return results[:request.max_results]
+            
+        except Exception as e:
+            logger.error(f"Error cercant coneixement: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def _enhance_search_with_llm(self, query: str, basic_results: List[KnowledgeSearchResult]) -> List[KnowledgeSearchResult]:
+        """Millorar cerca amb LLM per anàlisi semàntica"""
+        try:
+            from .llm_integration import generate_llm_response
+            
+            # Preparar context per al LLM
+            context_items = []
+            for result in basic_results:
+                context_items.append({
+                    "title": result.item.title,
+                    "content": result.item.content[:500],  # Limitar contingut
+                    "relevance_score": result.relevance_score,
+                    "category": result.item.category,
+                    "tags": result.item.tags
+                })
+            
+            # Crear prompt per al LLM
+            llm_prompt = f"""
+            Analitza aquesta consulta i els resultats de cerca per determinar quins són més rellevants semànticament.
+            
+            Consulta: "{query}"
+            
+            Resultats de cerca:
+            {json.dumps(context_items, indent=2, ensure_ascii=False)}
+            
+            Respon amb un JSON que contingui:
+            1. Un array "ranked_results" amb els IDs dels resultats ordenats per rellevància semàntica
+            2. Un array "reasoning" amb l'explicació de per què cada resultat és rellevant
+            
+            Format de resposta:
+            {{
+                "ranked_results": ["item_id_1", "item_id_2", ...],
+                "reasoning": ["Explicació 1", "Explicació 2", ...]
+            }}
+            """
+            
+            # Generar resposta amb LLM
+            llm_response = await generate_llm_response(
+                provider="openai",  # Usar OpenAI per defecte
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Ets un expert en anàlisi semàntica. Respon sempre en format JSON vàlid."},
+                    {"role": "user", "content": llm_prompt}
+                ],
+                max_tokens=1000,
+                temperature=0.3
+            )
+            
+            if llm_response.success:
+                try:
+                    # Parsejar resposta del LLM
+                    llm_analysis = json.loads(llm_response.content)
+                    ranked_ids = llm_analysis.get("ranked_results", [])
+                    
+                    # Reordenar resultats segons l'anàlisi del LLM
+                    enhanced_results = []
+                    for item_id in ranked_ids:
+                        for result in basic_results:
+                            if result.item.id == item_id:
+                                enhanced_results.append(result)
+                                break
+                    
+                    # Afegir resultats que no estan en la llista del LLM
+                    for result in basic_results:
+                        if result.item.id not in ranked_ids:
+                            enhanced_results.append(result)
+                    
+                    return enhanced_results
+                    
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Error parsejant resposta LLM: {e}")
+                    return basic_results
+            else:
+                logger.warning(f"Error LLM en cerca semàntica: {llm_response.error}")
+                return basic_results
+                
+        except Exception as e:
+            logger.warning(f"Error millorant cerca amb LLM: {e}")
+            return basic_results
+    
+    async def get_agent_knowledge(self, agent_id: str) -> List[KnowledgeItem]:
+        """Obtenir tot el coneixement d'un agent"""
+        try:
+            agent_items = knowledge_storage["agent_knowledge"].get(agent_id, [])
+            knowledge_items = []
+            
+            for item_id in agent_items:
+                if item_id in knowledge_storage["items"]:
+                    item_data = knowledge_storage["items"][item_id]
+                    knowledge_items.append(KnowledgeItem(**item_data))
+            
+            return knowledge_items
+            
+        except Exception as e:
+            logger.error(f"Error obtenint coneixement de l'agent: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def delete_knowledge_item(self, agent_id: str, item_id: str) -> bool:
+        """Eliminar element de coneixement"""
+        try:
+            if item_id not in knowledge_storage["items"]:
+                return False
+            
+            # Eliminar de l'emmagatzematge
+            del knowledge_storage["items"][item_id]
+            
+            # Eliminar de l'agent
+            if agent_id in knowledge_storage["agent_knowledge"]:
+                if item_id in knowledge_storage["agent_knowledge"][agent_id]:
+                    knowledge_storage["agent_knowledge"][agent_id].remove(item_id)
+            
+            # Eliminar de l'índex de cerca
+            if item_id in knowledge_storage["search_index"]:
+                del knowledge_storage["search_index"][item_id]
+            
+            logger.info(f"📚 Element de coneixement eliminat: {item_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error eliminant element de coneixement: {e}")
+            return False
+    
+    def _generate_item_id(self, agent_id: str, source: str, content: str) -> str:
+        """Generar ID únic per element de coneixement"""
+        hash_input = f"{agent_id}_{source}_{content[:100]}"
+        return hashlib.md5(hash_input.encode()).hexdigest()
+    
+    def _detect_language(self, content: str) -> str:
+        """Detectar idioma del contingut (implementació bàsica)"""
+        # Implementació bàsica - en producció usar biblioteca de detecció d'idiomes
+        content_lower = content.lower()
+        
+        if any(word in content_lower for word in ['el', 'la', 'de', 'que', 'y', 'a', 'en', 'un', 'es', 'se', 'no', 'te', 'lo', 'le', 'da', 'su', 'por', 'son', 'con', 'para', 'al', 'del', 'los', 'las']):
+            return 'es'
+        elif any(word in content_lower for word in ['el', 'la', 'de', 'que', 'i', 'a', 'en', 'un', 'és', 'se', 'no', 'te', 'lo', 'le', 'da', 'su', 'per', 'son', 'amb', 'per', 'al', 'del', 'els', 'les']):
+            return 'ca'
+        elif any(word in content_lower for word in ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after']):
+            return 'en'
+        else:
+            return 'auto'
+    
+    async def _extract_file_content(self, file_content: bytes, file_type: str) -> str:
+        """Extreure contingut de fitxer segons el tipus"""
+        try:
+            if file_type == 'txt':
+                return file_content.decode('utf-8', errors='ignore')
+            
+            elif file_type == 'html':
+                # Implementació bàsica per HTML
+                content = file_content.decode('utf-8', errors='ignore')
+                # Eliminar tags HTML bàsics
+                import re
+                content = re.sub(r'<[^>]+>', '', content)
+                return content.strip()
+            
+            elif file_type == 'pdf':
+                # TODO: Implementar extracció PDF amb PyPDF2 o similar
+                return "Contingut PDF - implementació pendent"
+            
+            elif file_type == 'docx':
+                # TODO: Implementar extracció DOCX amb python-docx
+                return "Contingut DOCX - implementació pendent"
+            
+            elif file_type == 'epub':
+                # TODO: Implementar extracció EPUB
+                return "Contingut EPUB - implementació pendent"
+            
+            else:
+                return file_content.decode('utf-8', errors='ignore')
+                
+        except Exception as e:
+            logger.error(f"Error extraient contingut de fitxer {file_type}: {e}")
+            return f"Error extraient contingut: {e}"
+    
+    async def _fetch_url_content(self, url: str) -> str:
+        """Descarregar contingut de URL"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        
+                        # Si és HTML, extreure només el text
+                        if 'text/html' in response.headers.get('content-type', ''):
+                            import re
+                            content = re.sub(r'<[^>]+>', '', content)
+                            content = re.sub(r'\s+', ' ', content).strip()
+                        
+                        return content
+                    else:
+                        raise Exception(f"Error descarregant URL: {response.status}")
+                        
+        except Exception as e:
+            logger.error(f"Error descarregant URL {url}: {e}")
+            raise Exception(f"Error descarregant URL: {e}")
+    
+    def _calculate_relevance_score(self, item: KnowledgeItem, query_words: set) -> float:
+        """Calcular puntuació de rellevància"""
+        try:
+            content_lower = item.content.lower()
+            title_lower = item.title.lower()
+            
+            score = 0.0
+            
+            # Puntuació per coincidències en el títol (pes major)
+            for word in query_words:
+                if word in title_lower:
+                    score += 3.0
+                if word in content_lower:
+                    score += 1.0
+            
+            # Bonus per coincidències en tags
+            for tag in item.tags:
+                if any(word in tag.lower() for word in query_words):
+                    score += 2.0
+            
+            # Bonus per categoria
+            if item.category.lower() in [word.lower() for word in query_words]:
+                score += 1.5
+            
+            # Aplicar factor de confiança
+            score *= item.confidence
+            
+            return score
+            
+        except Exception as e:
+            logger.error(f"Error calculant puntuació de rellevància: {e}")
+            return 0.0
+    
+    def _extract_relevant_snippets(self, content: str, query_words: set, max_snippets: int = 3) -> List[str]:
+        """Extreure fragments rellevants del contingut"""
+        try:
+            sentences = content.split('.')
+            relevant_snippets = []
+            
+            for sentence in sentences:
+                sentence_lower = sentence.lower()
+                if any(word in sentence_lower for word in query_words):
+                    relevant_snippets.append(sentence.strip())
+                    if len(relevant_snippets) >= max_snippets:
+                        break
+            
+            return relevant_snippets
+            
+        except Exception as e:
+            logger.error(f"Error extraient fragments rellevants: {e}")
+            return []
+    
+    async def _update_search_index(self, item_id: str, content: str):
+        """Actualitzar índex de cerca (implementació bàsica)"""
+        try:
+            # Implementació bàsica - en producció usar índex semàntic
+            words = set(content.lower().split())
+            knowledge_storage["search_index"][item_id] = words
+            
+        except Exception as e:
+            logger.error(f"Error actualitzant índex de cerca: {e}")
+
+# Instància global
+knowledge_engine = KnowledgeBaseEngine()
+
+# Endpoints
+@router.post("/text")
+async def add_text_knowledge(
+    agent_id: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(...),
+    tags: str = Form("[]"),  # JSON string
+    category: str = Form("general")
+):
+    """Afegir coneixement de text manual"""
+    try:
+        tags_list = json.loads(tags) if tags else []
+        knowledge_item = await knowledge_engine.add_text_knowledge(
+            agent_id=agent_id,
+            title=title,
+            content=content,
+            tags=tags_list,
+            category=category
+        )
+        
+        return {
+            "success": True,
+            "knowledge_item": knowledge_item.dict(),
+            "message": "Coneixement de text afegit correctament"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error afegint coneixement de text: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/file")
+async def add_file_knowledge(
+    agent_id: str = Form(...),
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    tags: str = Form("[]"),  # JSON string
+    category: str = Form("general")
+):
+    """Afegir coneixement des de fitxer"""
+    try:
+        tags_list = json.loads(tags) if tags else []
+        knowledge_item = await knowledge_engine.add_file_knowledge(
+            agent_id=agent_id,
+            file=file,
+            title=title,
+            tags=tags_list,
+            category=category
+        )
+        
+        return {
+            "success": True,
+            "knowledge_item": knowledge_item.dict(),
+            "message": "Coneixement de fitxer afegit correctament"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error afegint coneixement de fitxer: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/url")
+async def add_url_knowledge(
+    agent_id: str = Form(...),
+    url: str = Form(...),
+    title: Optional[str] = Form(None),
+    tags: str = Form("[]"),  # JSON string
+    category: str = Form("general")
+):
+    """Afegir coneixement des de URL"""
+    try:
+        tags_list = json.loads(tags) if tags else []
+        knowledge_item = await knowledge_engine.add_url_knowledge(
+            agent_id=agent_id,
+            url=url,
+            title=title,
+            tags=tags_list,
+            category=category
+        )
+        
+        return {
+            "success": True,
+            "knowledge_item": knowledge_item.dict(),
+            "message": "Coneixement de URL afegit correctament"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error afegint coneixement de URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/search")
+async def search_knowledge(request: KnowledgeSearchRequest):
+    """Cercar coneixement rellevant"""
+    try:
+        results = await knowledge_engine.search_knowledge(request)
+        
+        return {
+            "success": True,
+            "results": [result.dict() for result in results],
+            "query": request.query,
+            "total_results": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cercant coneixement: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/agent/{agent_id}")
+async def get_agent_knowledge(agent_id: str):
+    """Obtenir tot el coneixement d'un agent"""
+    try:
+        knowledge_items = await knowledge_engine.get_agent_knowledge(agent_id)
+        
+        return {
+            "success": True,
+            "knowledge_items": [item.dict() for item in knowledge_items],
+            "total_items": len(knowledge_items)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error obtenint coneixement de l'agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/agent/{agent_id}/connectors")
+async def list_connectors(agent_id: str):
+    """Llistar connectors configurats per un agent."""
+    return {
+        "success": True,
+        "connectors": _connector_list(agent_id),
+    }
+
+@router.post("/connectors")
+async def create_connector(request: KnowledgeConnectorRequest):
+    """Registrar un nou connector extern."""
+    connector_id = f"conn_{uuid4().hex}"
+    record = KnowledgeConnector(
+        id=connector_id,
+        agent_id=request.agent_id,
+        name=request.name,
+        connector_type=request.connector_type,
+        config=request.config,
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
+    )
+    stored = _store_connector(record.dict())
+    return {"success": True, "connector": stored}
+
+@router.delete("/agent/{agent_id}/connectors/{connector_id}")
+async def delete_connector(agent_id: str, connector_id: str):
+    connectors = _connector_list(agent_id)
+    filtered = [c for c in connectors if c["id"] != connector_id]
+    if len(filtered) == len(connectors):
+        raise HTTPException(status_code=404, detail="Connector no trobat")
+    knowledge_connectors[agent_id] = filtered
+    return {"success": True}
+
+@router.post("/jobs")
+async def enqueue_ingestion_job(request: KnowledgeJobRequest):
+    """Crear una feina d'ingestió en segon pla."""
+    if request.source_type not in {"text", "url", "connector"}:
+        raise HTTPException(status_code=400, detail="Tipus de feina no suportat en mode async")
+
+    job = _create_job(
+        agent_id=request.agent_id,
+        source_type=request.source_type,
+        detail=request.payload,
+    )
+
+    if request.source_type == "text":
+        content = request.payload.get("content", "")
+        if not content.strip():
+            raise HTTPException(status_code=400, detail="Cal proporcionar contingut de text")
+        title = request.payload.get("title") or content[:60]
+        tags = request.payload.get("tags") or []
+        category = request.payload.get("category", "general")
+
+        async def run_text():
+            item = await knowledge_engine.add_text_knowledge(
+                agent_id=request.agent_id,
+                title=title,
+                content=content,
+                tags=tags,
+                category=category,
+            )
+            return {"knowledge_item": item.dict()}
+
+        asyncio.create_task(_run_job(job["id"], run_text))
+
+    elif request.source_type == "url":
+        url = request.payload.get("url")
+        if not url:
+            raise HTTPException(status_code=400, detail="Cal proporcionar una URL")
+        title = request.payload.get("title")
+        tags = request.payload.get("tags") or []
+        category = request.payload.get("category", "general")
+
+        async def run_url():
+            item = await knowledge_engine.add_url_knowledge(
+                agent_id=request.agent_id,
+                url=url,
+                title=title,
+                tags=tags,
+                category=category,
+            )
+            return {"knowledge_item": item.dict()}
+
+        asyncio.create_task(_run_job(job["id"], run_url))
+
+    elif request.source_type == "connector":
+        connector_id = request.payload.get("connector_id")
+        if not connector_id:
+            raise HTTPException(status_code=400, detail="Cal indicar connector_id")
+        connector = next((c for c in _connector_list(request.agent_id) if c["id"] == connector_id), None)
+        if not connector:
+            raise HTTPException(status_code=404, detail="Connector no trobat")
+
+        async def run_connector():
+            connector["status"] = "syncing"
+            connector["updated_at"] = datetime.now().isoformat()
+            item = await knowledge_engine.sync_connector(request.agent_id, connector)
+            connector["status"] = "synced"
+            connector["updated_at"] = datetime.now().isoformat()
+            return {"knowledge_item": item.dict()}
+
+        asyncio.create_task(_run_job(job["id"], run_connector))
+
+    return {"success": True, "job": job}
+
+@router.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    job = ingestion_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Feina no trobada")
+    return {"success": True, "job": job}
+
+@router.get("/agent/{agent_id}/jobs")
+async def list_jobs(agent_id: str):
+    jobs = [job for job in ingestion_jobs.values() if job["agent_id"] == agent_id]
+    jobs.sort(key=lambda j: j["created_at"], reverse=True)
+    return {"success": True, "jobs": jobs}
+
+@router.delete("/agent/{agent_id}/item/{item_id}")
+async def delete_knowledge_item(agent_id: str, item_id: str):
+    """Eliminar element de coneixement"""
+    try:
+        success = await knowledge_engine.delete_knowledge_item(agent_id, item_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Element de coneixement eliminat correctament"
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Element de coneixement no trobat")
+        
+    except Exception as e:
+        logger.error(f"Error eliminant element de coneixement: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/supported-formats")
+async def get_supported_formats():
+    """Obtenir formats de fitxer suportats"""
+    return {
+        "success": True,
+        "supported_formats": list(knowledge_engine.supported_file_types.keys()),
+        "max_file_size": knowledge_engine.max_file_size,
+        "content_types": knowledge_engine.supported_file_types
+    }
+
+@router.get("/health")
+async def knowledge_health():
+    """Health check del sistema de coneixement"""
+    return {
+        "status": "ok",
+        "message": "Sistema de coneixement funcionant",
+        "stats": {
+            "total_items": len(knowledge_storage["items"]),
+            "total_agents": len(knowledge_storage["agent_knowledge"]),
+            "indexed_items": len(knowledge_storage["search_index"])
+        }
+    }

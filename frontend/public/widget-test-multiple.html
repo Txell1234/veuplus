@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeuPlus ConvHi Widget Test - Múltiples Agents</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .agent-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            background: #f9fafb;
+        }
+        
+        .agent-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .agent-card p {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .agent-id {
+            background: #e5e7eb;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .test-button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .test-button:hover {
+            background: #2563EB;
+        }
+        
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .instructions h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .status {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 VeuPlus ConvHi Widget Test - Múltiples Agents</h1>
+        
+        <div class="status info">
+            <strong>💡 Instruccions:</strong> Cada agent té el seu propi widget. Crea agents diferents i prova cada un.
+        </div>
+        
+        <div class="instructions">
+            <h4>📋 Com vincular diferents ConvHi:</h4>
+            <ul>
+                <li><strong>1. Crea agents ConvHi</strong> a http://localhost:3000/convhi-agents</li>
+                <li><strong>2. Clica "🌐"</strong> a cada agent per obtenir el seu codi HTML</li>
+                <li><strong>3. Copia el codi</strong> i pega'l a la teva web</li>
+                <li><strong>4. Cada widget</strong> es connectarà amb el seu agent específic</li>
+            </ul>
+        </div>
+        
+        <div class="agents-grid">
+            <div class="agent-card">
+                <h3>Agent de Suport</h3>
+                <p>Agent especialitzat en atenció al client</p>
+                <div class="agent-id">Agent ID: convhi_1</div>
+                <button class="test-button" onclick="testAgent('convhi_1')">
+                    Provar Agent de Suport
+                </button>
+            </div>
+            
+            <div class="agent-card">
+                <h3>Agent de Vendes</h3>
+                <p>Agent especialitzat en vendes i productes</p>
+                <div class="agent-id">Agent ID: convhi_2</div>
+                <button class="test-button" onclick="testAgent('convhi_2')">
+                    Provar Agent de Vendes
+                </button>
+            </div>
+            
+            <div class="agent-card">
+                <h3>Agent Tècnic</h3>
+                <p>Agent especialitzat en suport tècnic</p>
+                <div class="agent-id">Agent ID: convhi_3</div>
+                <button class="test-button" onclick="testAgent('convhi_3')">
+                    Provar Agent Tècnic
+                </button>
+            </div>
+        </div>
+        
+        <div class="status success">
+            <strong>✅ Widgets carregats!</strong> Cada agent té el seu propi widget independent.
+        </div>
+        
+        <div class="instructions">
+            <h4>🔧 Configuració per Agent:</h4>
+            <ul>
+                <li><strong>Agent ID únic:</strong> Cada agent té un ID diferent</li>
+                <li><strong>Configuració independent:</strong> Colors, text, veu per agent</li>
+                <li><strong>Connexions separades:</strong> Cada widget es connecta al seu agent</li>
+                <li><strong>Historial independent:</strong> Cada conversa és separada</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function testAgent(agentId) {
+            // Crear widget temporal per provar
+            const existingWidget = document.querySelector('.veuplus-convhi-widget');
+            if (existingWidget) {
+                existingWidget.remove();
+            }
+            
+            // Crear nou widget amb l'agent específic
+            const widgetElement = document.createElement('veuplus-convhi');
+            widgetElement.setAttribute('agent-id', agentId);
+            widgetElement.setAttribute('variant', 'compact');
+            widgetElement.setAttribute('mode', 'voice_text');
+            widgetElement.setAttribute('action-text', `Agent ${agentId}`);
+            widgetElement.setAttribute('primary-color', '#3B82F6');
+            widgetElement.setAttribute('secondary-color', '#1E40AF');
+            widgetElement.setAttribute('avatar-orb-color-1', '#6DB035');
+            widgetElement.setAttribute('avatar-orb-color-2', '#F5CABB');
+            
+            document.body.appendChild(widgetElement);
+            
+            // Carregar script del widget
+            const script = document.createElement('script');
+            script.src = 'http://localhost:3000/convhi-widget.js';
+            script.async = true;
+            document.head.appendChild(script);
+            
+            alert(`Widget creat per agent ${agentId}! Mira la cantonada inferior dreta.`);
+        }
+        
+        // Carregar widget per defecte
+        window.addEventListener('load', () => {
+            testAgent('convhi_1');
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

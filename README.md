@@ -1,15 +1,73 @@
-# VeuPlus Platform
+# AT Hub - VeuPlus Platform v2.1.0
 
-Plataforma completa para TTS catalán, chatbots/voicebots y entrenamiento de voces. Backend en FastAPI (SQLite) y frontend en React. Soporta LLM local (gpt‑oss‑20b via vLLM) y OpenAI.
+**Actualizado:** 10 de octubre de 2025
 
-## Ejecutar (Docker)
+Plataforma completa i professional per a TTS catala, chatbots/voicebots i entrenament de veus, desenvolupada dins de AT Hub - Grup Amb Tu. Backend en FastAPI (SQLite) i frontend en React. Soporta multiples LLMs: OpenAI, Gemini, Claude, Ollama, vLLM i mes.
+
+## Identitat AT Hub
+
+- Logo: frontend/src/assets/ambtu-logo.svg (versio UI optimitzada)
+- Paleta principal: blau navy #0f1f68, blau profund #07144a, accent taronja #ff6537
+- Fons recomanats: primary-50 per pantalles generals i primary-100 per seccions destacades
+
+Quan preparis documents, demos o material onboarding, utilitza aquesta paleta i el logotip AT Hub.
+
+
+
+## 🎉 Novedades en v2.1.0
+
+- ✅ **Dependencias actualizadas:** FastAPI 0.115, PyTorch 2.5, Transformers 4.46, React 18.3, Vite 5.4
+- ⚙️ **Configuración mejorada:** Más de 20 nuevas variables de entorno configurables
+- 📚 **Documentación completa:** Nuevas guías de instalación, compatibilidad y changelog
+- 🔐 **Seguridad mejorada:** Todas las dependencias con parches de seguridad actualizados
+- 🚀 **Mejor rendimiento:** Timeouts optimizados y cache configurable
+- 🌟 **NUEVO: Integración ALIA Kit (BSC)** - Modelos oficiales multilingües del Barcelona Supercomputing Center
+
+Ver [CHANGELOG_v2.1.0.md](CHANGELOG_v2.1.0.md) para detalles completos.
+
+## 🌟 ALIA Kit Integration (NUEVO)
+
+VeuPlus ahora integra **ALIA Kit**, la infraestructura oficial de IA del Barcelona Supercomputing Center (BSC):
+
+- 🗣️ **Voces profesionales BSC** para catalán, español, euskera y gallego
+- 🤖 **LLMs multilingües** (Salamandra 7B, ALIA 40B)
+- ↔️ **Traducción automática** entre lenguas cooficiales  
+- 📊 **Datasets curados** por el BSC con MareNostrum
+
+**Estado:** Fase 1 completada (estructura implementada)  
+**Docs:** [INTEGRACION_ALIA_KIT.md](INTEGRACION_ALIA_KIT.md)  
+**Fuente oficial:** [https://langtech-bsc.gitbook.io/alia-kit](https://langtech-bsc.gitbook.io/alia-kit)
+
+## 🚀 Inicio Rápido
+
+### Con Docker (Recomendado)
 
 ```bash
 docker compose up --build -d
-# Open http://localhost:8080
+# Abre http://localhost:8080
 ```
 
 Nginx sirve el frontend en el puerto 8080 y hace proxy de `/api` hacia Uvicorn (backend).
+
+### Manual (Desarrollo)
+
+```bash
+# 1. Configurar entorno
+cp config.example.env .env
+
+# 2. Backend
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+cd backend && python server.py
+
+# 3. Frontend (otra terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+Ver [GUIA_INSTALACION_ACTUALIZADA.md](GUIA_INSTALACION_ACTUALIZADA.md) para instrucciones detalladas.
 
 Environment flags (opcional):
 - `WARMUP_TTS=1` precarga XTTS v2
@@ -17,6 +75,14 @@ Environment flags (opcional):
 - `CATALAN_DATASET_PATH=/data/catalan` usa WAVs locales como referencia de locutor
 
 ## Variables de entorno frontend
+- `REACT_APP_BACKEND_URL` (en produccion, fijar al dominio publico abans del build)
+
+## Variables de entorno ConvHi
+- `CONVHI_WIDGET_SECRET`: clau per signar URLs del widget (obligatori en produccio).
+- `CONVHI_WIDGET_ALLOWLIST`: llista de dominis autoritzats per carregar l'embed (separats per comes).
+- `CONVHI_WEBHOOK_SECRET`: secret HMAC per validar les sol licituds entrants.
+- `CONVHI_WEBHOOK_STORE`: opcional, si es defineix `false` desactiva la persistencia local dels events.
+
 - `REACT_APP_BACKEND_URL` (en producción, fijar al dominio público antes de build)
 
 ## Entrenamiento XTTS
@@ -113,6 +179,33 @@ $env:TRANSFORMERS_MODEL = "openai/gpt-oss-20b"
 ## Tests
 
 - Carpeta `tests/` (placeholder inicial). Recomendado añadir casos: health, chatbots CRUD, chat transformers, TTS y knowledge‑base.
+
+## 📋 Requisitos del Sistema
+
+### Mínimos
+- **Python:** 3.10 o superior (3.11+ recomendado)
+- **Node.js:** 18.x o superior
+- **RAM:** 8 GB mínimo
+- **Disco:** 5 GB libres
+
+### Recomendados
+- **Python:** 3.11 (mejor rendimiento)
+- **RAM:** 16 GB
+- **GPU:** NVIDIA con CUDA 11.8+ (para LLMs locales)
+- **Disco:** 10 GB libres (para modelos)
+
+Ver [COMPATIBILIDAD_PYTHON.md](COMPATIBILIDAD_PYTHON.md) para detalles completos.
+
+## 📚 Documentación Completa
+
+- **[GUIA_INSTALACION_ACTUALIZADA.md](GUIA_INSTALACION_ACTUALIZADA.md)** - Guía completa de instalación paso a paso
+- **[CHANGELOG_v2.1.0.md](CHANGELOG_v2.1.0.md)** - Cambios y novedades en v2.1.0
+- **[COMPATIBILIDAD_PYTHON.md](COMPATIBILIDAD_PYTHON.md)** - Compatibilidad con versiones de Python
+- **[config.example.env](config.example.env)** - Archivo de configuración de ejemplo
+- **[RESUMEN_VEUPLUS.md](RESUMEN_VEUPLUS.md)** - Estado funcional del sistema
+- **[CATALOGO_VOCES_VEUPLUS.md](CATALOGO_VOCES_VEUPLUS.md)** - Catálogo completo de voces
+- **[BACKEND_README.md](BACKEND_README.md)** - Documentación técnica del backend
+- **[docs/HYPERREALISTIC_SETUP.md](docs/HYPERREALISTIC_SETUP.md)** - Pasos per activar les veus hiperrealistes quan disposem de GPU
 
 
 Para habilitar un proveedor LLM abierto (Unsloth):

@@ -44,3 +44,7 @@ Contiene, de forma clara y ejecutable:
 
 &nbsp; - Rate limit in‑memory (para 1 instancia), ASR/TTS placeholders.
 
+- ConvHi integracio (nou)
+  - Endpoints: POST /api/convhi/webhooks/post-call i POST /api/convhi/widget/signed-url.
+  - Requereix CONVHI_WEBHOOK_SECRET per validar signatures i CONVHI_WIDGET_SECRET per signar embeds.
+  - Els events de webhook es guarden a la taula SQLite convhi_webhook_events per alimentar analytics.

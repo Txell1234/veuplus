@@ -1,0 +1,10 @@
+{
+  "domains": [
+    "localhost",
+    "127.0.0.1",
+    "localhost:3000",
+    "localhost:5173",
+    "localhost:8080"
+  ],
+  "updated_at": "2025-10-23T10:10:05.360552"
+}

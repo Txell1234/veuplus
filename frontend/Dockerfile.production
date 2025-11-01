@@ -1,0 +1,32 @@
+FROM node:18-alpine
+
+# Crear directori de treball
+WORKDIR /app
+
+# Copiar package files
+COPY package*.json ./
+
+# Instal·lar dependències
+RUN npm ci --only=production
+
+# Copiar codi
+COPY . .
+
+# Build de producció
+RUN npm run build
+
+# Exposar port
+EXPOSE 3000
+
+# Comanda d'inici
+CMD ["npm", "run", "preview"]
+
+
+
+
+
+
+
+
+
+

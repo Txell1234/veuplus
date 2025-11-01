@@ -1,0 +1,39 @@
+FROM python:3.13-slim
+
+# Instal·lar dependències del sistema
+RUN apt-get update && apt-get install -y \
+    curl \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear directori de treball
+WORKDIR /app
+
+# Copiar requirements
+COPY requirements.txt .
+
+# Instal·lar dependències Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar codi
+COPY backend/ ./backend/
+COPY models/ ./models/
+
+# Crear directoris necessaris
+RUN mkdir -p /app/backend/training_data /app/logs
+
+# Exposar port
+EXPOSE 8003
+
+# Comanda d'inici
+CMD ["python", "backend/server.py"]
+
+
+
+
+
+
+
+
+
+

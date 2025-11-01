@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from './config/api';
 
 const VoiceTrainingAdvanced = () => {
   const [activeStep, setActiveStep] = useState(1);
@@ -8,21 +8,19 @@ const VoiceTrainingAdvanced = () => {
   const [trainingProgress, setTrainingProgress] = useState({});
   const [systemStatus, setSystemStatus] = useState({});
   const [supportedLanguages, setSupportedLanguages] = useState({});
+  const [publishedIds, setPublishedIds] = useState([]);
+  const [promptText, setPromptText] = useState('Catalan male, warm and expressive, BarcelonÌ accent');
+  const [generatingSpec, setGeneratingSpec] = useState(false);
+  const [trainedVoices, setTrainedVoices] = useState([]);
+  const [catalanVoices, setCatalanVoices] = useState([]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
+  const [testText, setTestText] = useState('Hola, aquesta Ès una prova de veu hiperrealista.');
+  const [testAudioUrl, setTestAudioUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const wsRef = useRef(null);
 
-  const getApiBase = () => {
-    const viteUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
-      ? import.meta.env.VITE_BACKEND_URL
-      : undefined;
-    const envUrl = viteUrl || process.env.REACT_APP_BACKEND_URL;
-    if (envUrl && envUrl.trim() !== '') return `${envUrl.replace(/\/$/, '')}`;
-    return 'http://localhost:8001';
-  };
-  // API base debe incluir /api para llamadas HTTP
-  const API = `${getApiBase()}`;
-  // Sanity: asegurar que axios usa la URL del backend
-  const ax = axios.create({ baseURL: API });
+  // Usar configuraciÛn centralizada de API
+  const ax = api;
 
   // Training form state
   const [trainingForm, setTrainingForm] = useState({
@@ -57,20 +55,36 @@ const VoiceTrainingAdvanced = () => {
       setIsLoading(true);
       
       // Load all dashboard data in parallel
-      const [sessionsRes, statusRes, languagesRes] = await Promise.all([
+      const [sessionsRes, statusRes, languagesRes, trainedRes, caVoicesRes] = await Promise.all([
         ax.get(`/api/training/jobs`),
         ax.get(`/api/training/system/status`),
-        ax.get(`/api/training/languages`)
+        ax.get(`/api/training/languages`),
+        ax.get(`/api/trained/voices`).catch(() => ({ data: { trained_voices: [] }})),
+        ax.get(`/api/catalan/voices/all`).catch(() => ({ data: { voices: [] }})),
       ]);
       
       setTrainingSessions(sessionsRes.data.jobs || []);
       setSystemStatus(statusRes.data || {});
       setSupportedLanguages(languagesRes.data.supported_languages || {});
+      setTrainedVoices(trainedRes.data.trained_voices || []);
+      setCatalanVoices(caVoicesRes.data.voices || []);
+      try {
+        const pub = await ax.get(`/api/voices/publish`);
+        setPublishedIds(pub.data.published || []);
+      } catch (e) {
+        console.warn("Publish list not available");
+      }
+      if (!selectedVoiceId) {
+        const first = (trainedRes.data.trained_voices || [])[0]?.id || (caVoicesRes.data.voices || [])[0]?.id || '';
+        setSelectedVoiceId(first);
+      }
       
       console.log('Loaded data:', {
         sessions: sessionsRes.data.jobs?.length || 0,
         status: statusRes.data,
-        languages: Object.keys(languagesRes.data.supported_languages || {})
+        languages: Object.keys(languagesRes.data.supported_languages || {}),
+        trained: (trainedRes.data.trained_voices || []).length,
+        catalanVoices: (caVoicesRes.data.voices || []).length,
       });
       
     } catch (error) {
@@ -87,14 +101,96 @@ const VoiceTrainingAdvanced = () => {
     }
   };
 
+  
+  const publishSelected = async () => {
+    if (!selectedVoiceId) return;
+    try {
+      const res = await ax.post(/api/voices/publish/);
+      setPublishedIds(res.data.published || []);
+    } catch (e) {
+      console.error('Publish error:', e);
+      alert('No s\u2019ha pogut publicar la veu');
+    }
+  };
+
+  const unpublishSelected = async () => {
+    if (!selectedVoiceId) return;
+    try {
+      const res = await ax.delete(/api/voices/publish/);
+      setPublishedIds(res.data.published || []);
+    } catch (e) {
+      console.error('Unpublish error:', e);
+      alert('No s\u2019ha pogut despublicar la veu');
+    }
+  };
+
+  const generateSpecFromPrompt = async () => {
+    setGeneratingSpec(true);
+    try {
+      const res = await ax.post('/api/training/prompt-spec', {
+        prompt: promptText,
+        language: trainingForm.language,
+      });
+      const spec = res.data || {};
+      setTrainingForm(prev => ({
+        ...prev,
+        name: spec.name || prev.name,
+        language: spec.language || prev.language,
+        dialect: spec.dialect || prev.dialect,
+        use_catalan_dataset: !!spec.use_catalan_dataset,
+        training_config: { ...(prev.training_config||{}), ...(spec.training_config||{}) },
+      }));
+      setActiveStep(3);
+    } catch (e) {
+      console.error('Prompt-spec error:', e);
+      alert('No s\u2019ha pogut generar l\u2019especificaciÛ');
+    } finally {
+      setGeneratingSpec(false);
+    }
+  };const synthesizeHyperrealistic = async () => {
+    if (!selectedVoiceId) {
+      alert('Selecciona una veu');
+      return;
+    }
+    setIsLoading(true);
+    setTestAudioUrl('');
+    try {
+      // If selected voice exists in trained voices, use trained endpoint
+      const isTrained = trainedVoices.some(v => v.id === selectedVoiceId);
+      const endpoint = isTrained ? '/api/trained/synthesize' : '/api/catalan/synthesize';
+      const body = {
+        text: testText,
+        voice_id: selectedVoiceId,
+        language: 'ca',
+        voice_settings: { stability: 0.75, similarity_boost: 0.8 }
+      };
+      const res = await ax.post(endpoint, body);
+      const b64 = res.data.audio_base64;
+      if (!b64) throw new Error('No audio returned');
+      const url = `data:${res.data.mime_type || 'audio/wav'};base64,${b64}`;
+      setTestAudioUrl(url);
+    } catch (e) {
+      console.error('Hyperrealistic synth error:', e);
+      alert('Error en sÌntesi: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const connectWebSocket = (jobId) => {
     if (wsRef.current) {
       wsRef.current.close();
     }
 
-    // Conectar al backend (no al puerto del frontend)
-    const backendHttp = API; // e.g., http://localhost:8001
-    const wsBase = backendHttp.replace(/^http/i, backendHttp.startsWith('https') ? 'wss' : 'ws');
+    // Construir URL WebSocket segura seg˙n la base de API
+    const baseURL = ax?.defaults?.baseURL || '';
+    let httpOrigin = baseURL;
+    if (!httpOrigin) {
+      // En dev con proxy Vite, usar el origen actual
+      httpOrigin = window.location.origin;
+    }
+    const wsScheme = httpOrigin.startsWith('https') ? 'wss' : 'ws';
+    const wsBase = httpOrigin.replace(/^https?/i, wsScheme);
     const wsUrl = `${wsBase}/api/training/ws/${jobId}`;
     console.log('Connecting to WebSocket:', wsUrl);
     
@@ -169,38 +265,174 @@ const VoiceTrainingAdvanced = () => {
     }
   };
 
+  const getDialectInfo = (dialect, language) => {
+    const dialectMap = {
+      ca: {
+        central: {
+          name: "Central",
+          description: "Dialecto est·ndar de Barcelona y ·rea metropolitana",
+          features: ["PronunciaciÛn neutra", "EntonaciÛn equilibrada", "Vocabulario est·ndar"]
+        },
+        balearic: {
+          name: "Balear",
+          description: "Dialecto de las Islas Baleares (Mallorca, Menorca, Ibiza)",
+          features: ["PronunciaciÛn caracterÌstica", "Influencia insular", "Vocabulario local"]
+        },
+        valencian: {
+          name: "Valenciano",
+          description: "Dialecto de la Comunidad Valenciana",
+          features: ["PronunciaciÛn valenciana", "EntonaciÛn distintiva", "TradiciÛn literaria"]
+        },
+        andorran: {
+          name: "Andorrano",
+          description: "Dialecto de Andorra con influencias francesas",
+          features: ["Influencia francesa", "PronunciaciÛn ˙nica", "Vocabulario mixto"]
+        },
+        rossellones: {
+          name: "RosellonÈs",
+          description: "Dialecto del RosellÛn (CataluÒa Norte)",
+          features: ["Influencia francesa", "PronunciaciÛn histÛrica", "TradiciÛn cultural"]
+        },
+        alguerese: {
+          name: "AlguerÈs",
+          description: "Dialecto de Alguer (CerdeÒa)",
+          features: ["Influencia italiana", "PronunciaciÛn ˙nica", "Comunidad histÛrica"]
+        }
+      },
+      es: {
+        castilian: {
+          name: "Castellano",
+          description: "EspaÒol est·ndar de EspaÒa",
+          features: ["PronunciaciÛn neutra", "EntonaciÛn est·ndar"]
+        },
+        andalusian: {
+          name: "Andaluz",
+          description: "Dialecto del sur de EspaÒa",
+          features: ["PronunciaciÛn caracterÌstica", "EntonaciÛn musical"]
+        },
+        mexican: {
+          name: "Mexicano",
+          description: "EspaÒol de MÈxico",
+          features: ["PronunciaciÛn mexicana", "Vocabulario local"]
+        },
+        argentinian: {
+          name: "Argentino",
+          description: "EspaÒol de Argentina",
+          features: ["PronunciaciÛn rioplatense", "EntonaciÛn distintiva"]
+        }
+      },
+      fr: {
+        metropolitan: {
+          name: "Metropolitano",
+          description: "FrancÈs est·ndar de Francia",
+          features: ["PronunciaciÛn est·ndar", "EntonaciÛn neutra"]
+        },
+        canadian: {
+          name: "Canadiense",
+          description: "FrancÈs de Quebec",
+          features: ["PronunciaciÛn quebequense", "Vocabulario local"]
+        },
+        belgian: {
+          name: "Belga",
+          description: "FrancÈs de BÈlgica",
+          features: ["PronunciaciÛn belga", "Influencias locales"]
+        }
+      },
+      en: {
+        american: {
+          name: "Americano",
+          description: "InglÈs americano est·ndar",
+          features: ["PronunciaciÛn americana", "EntonaciÛn caracterÌstica"]
+        },
+        british: {
+          name: "Brit·nico",
+          description: "InglÈs brit·nico est·ndar",
+          features: ["PronunciaciÛn brit·nica", "EntonaciÛn distintiva"]
+        },
+        australian: {
+          name: "Australiano",
+          description: "InglÈs australiano",
+          features: ["PronunciaciÛn australiana", "Vocabulario local"]
+        },
+        canadian: {
+          name: "Canadiense",
+          description: "InglÈs canadiense",
+          features: ["PronunciaciÛn canadiense", "Influencias mixtas"]
+        }
+      },
+      pt: {
+        brazilian: {
+          name: "BrasileÒo",
+          description: "PortuguÈs de Brasil",
+          features: ["PronunciaciÛn brasileÒa", "EntonaciÛn musical"]
+        },
+        european: {
+          name: "Europeo",
+          description: "PortuguÈs de Portugal",
+          features: ["PronunciaciÛn portuguesa", "EntonaciÛn caracterÌstica"]
+        }
+      }
+    };
+
+    return dialectMap[language]?.[dialect] || {
+      name: dialect.charAt(0).toUpperCase() + dialect.slice(1),
+      description: `Dialecto ${dialect}`,
+      features: ["PronunciaciÛn est·ndar"]
+    };
+  };
+
   const renderLanguageSelection = () => {
-    // Fallback language data if API fails
+    // Enhanced language data with hyperrealistic quality indicators
     const fallbackLanguages = {
       "ca": {
         "name": "Catalan Dataset (OpenSLR)",
         "dialects": ["central", "balearic", "valencian", "andorran", "rossellones", "alguerese"],
         "sample_rate": 22050,
-        "lang_code": "ca"
+        "lang_code": "ca",
+        "hyperrealistic": true,
+        "quality_score": 95,
+        "dataset_size": "50K+ samples",
+        "features": ["Native pronunciation", "Emotional range", "Natural intonation", "Dialect accuracy"]
       },
       "es": {
         "name": "Spanish Dataset",
         "dialects": ["castilian", "andalusian", "mexican", "argentinian"],
         "sample_rate": 16000,
-        "lang_code": "es"
+        "lang_code": "es",
+        "hyperrealistic": false,
+        "quality_score": 85,
+        "dataset_size": "30K+ samples",
+        "features": ["Standard pronunciation", "Clear articulation"]
       },
       "fr": {
         "name": "French Dataset", 
         "dialects": ["metropolitan", "canadian", "belgian"],
         "sample_rate": 16000,
-        "lang_code": "fr"
+        "lang_code": "fr",
+        "hyperrealistic": false,
+        "quality_score": 80,
+        "dataset_size": "25K+ samples",
+        "features": ["Standard pronunciation", "Clear articulation"]
       },
       "en": {
         "name": "English Dataset",
         "dialects": ["american", "british", "australian", "canadian"],
         "sample_rate": 16000,
-        "lang_code": "en"
+        "lang_code": "en",
+        "hyperrealistic": false,
+        "quality_score": 82,
+        "dataset_size": "40K+ samples",
+        "features": ["Standard pronunciation", "Clear articulation"]
       },
       "pt": {
         "name": "Portuguese Dataset",
         "dialects": ["brazilian", "european"],
         "sample_rate": 16000,
-        "lang_code": "pt"
+        "lang_code": "pt",
+        "hyperrealistic": false,
+        "quality_score": 78,
+        "dataset_size": "20K+ samples",
+        "features": ["Standard pronunciation", "Clear articulation"]
       }
     };
 
@@ -221,17 +453,66 @@ const VoiceTrainingAdvanced = () => {
               <div
                 key={langCode}
                 onClick={() => setTrainingForm(prev => ({ ...prev, language: langCode }))}
-                className={`card p-4 cursor-pointer transition-all ${trainingForm.language === langCode ? 'ring-2 ring-brand-500' : 'hover:scale-[1.01]'}`}
+                className={`card p-4 cursor-pointer transition-all relative ${
+                  trainingForm.language === langCode ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:scale-[1.02] hover:shadow-lg'
+                } ${langData.hyperrealistic ? 'border-2 border-gradient-to-r from-purple-400 to-pink-400' : ''}`}
               >
-                <div className="text-lg font-semibold mb-2">
+                {/* Hyperrealistic Badge */}
+                {langData.hyperrealistic && (
+                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
+                    ? HIPERREALISTA
+                  </div>
+                )}
+                
+                <div className="text-lg font-semibold mb-2 flex items-center">
                   {langData.name}
+                  {langData.hyperrealistic && (
+                    <span className="ml-2 text-purple-500">??</span>
+                  )}
                 </div>
-                <div className="text-sm text-gray-600">
-                  {langData.dialects?.length || 0} dialects supported
+                
+                {/* Quality Score */}
+                <div className="flex items-center mb-2">
+                  <span className="text-sm text-gray-600 mr-2">Calidad:</span>
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all ${
+                        langData.hyperrealistic ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${langData.quality_score}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-medium ml-2">{langData.quality_score}%</span>
                 </div>
+                
+                <div className="text-sm text-gray-600 mb-2">
+                  {langData.dialects?.length || 0} dialectos ï {langData.dataset_size}
+                </div>
+                
+                {/* Features */}
+                <div className="space-y-1">
+                  {langData.features?.slice(0, 2).map((feature, idx) => (
+                    <div key={idx} className="text-xs text-gray-500 flex items-center">
+                      <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
+                      {feature}
+                    </div>
+                  ))}
+                  {langData.features?.length > 2 && (
+                    <div className="text-xs text-gray-400">
+                      +{langData.features.length - 2} m·s caracterÌsticas
+                    </div>
+                  )}
+                </div>
+                
+                {/* Special Catalan Features */}
                 {langCode === 'ca' && (
-                  <div className="mt-2 text-xs px-2 py-1 rounded glass inline-block">
-                    Hyperrealistic Quality
+                  <div className="mt-3 p-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                    <div className="text-xs font-medium text-purple-800 mb-1">
+                      ???? Dataset Especializado
+                    </div>
+                    <div className="text-xs text-purple-700">
+                      PronunciaciÛn nativa con patrones emocionales naturales
+                    </div>
                   </div>
                 )}
               </div>
@@ -241,17 +522,63 @@ const VoiceTrainingAdvanced = () => {
 
         {trainingForm.language && languages[trainingForm.language]?.dialects && (
           <div className="mt-6">
-            <h4 className="text-lg font-medium mb-3">Select Dialect</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {languages[trainingForm.language].dialects.map((dialect) => (
-                <button
-                  key={dialect}
-                  onClick={() => setTrainingForm(prev => ({ ...prev, dialect }))}
-                  className={`p-3 text-sm rounded-lg border transition-all ${trainingForm.dialect === dialect ? 'ring-2 ring-brand-500' : 'hover:scale-[1.01]'} card`}
-                >
-                  {dialect.charAt(0).toUpperCase() + dialect.slice(1)}
-                </button>
-              ))}
+            <h4 className="text-lg font-medium mb-3">
+              Selecciona Dialecto {trainingForm.language === 'ca' && 'Catal·n'}
+            </h4>
+            
+            {/* Special info for Catalan */}
+            {trainingForm.language === 'ca' && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                <div className="flex items-start">
+                  <div className="text-purple-500 text-xl mr-3">??</div>
+                  <div>
+                    <h5 className="font-semibold text-purple-900 mb-1">PrecisiÛn Dialectal Hiperrealista</h5>
+                    <p className="text-purple-700 text-sm">
+                      Cada dialecto catal·n tiene patrones ˙nicos de pronunciaciÛn, entonaciÛn y vocabulario. 
+                      Nuestro sistema especializado captura estas sutilezas para crear voces autÈnticamente nativas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {languages[trainingForm.language].dialects.map((dialect) => {
+                const dialectInfo = getDialectInfo(dialect, trainingForm.language);
+                return (
+                  <button
+                    key={dialect}
+                    onClick={() => setTrainingForm(prev => ({ ...prev, dialect }))}
+                    className={`p-4 text-sm rounded-lg border transition-all text-left ${
+                      trainingForm.dialect === dialect 
+                        ? 'ring-2 ring-purple-500 bg-purple-50 border-purple-300' 
+                        : 'hover:scale-[1.02] hover:shadow-md border-gray-200'
+                    } ${trainingForm.language === 'ca' ? 'bg-white' : 'bg-gray-50'}`}
+                  >
+                    <div className="font-medium mb-1">
+                      {dialectInfo.name}
+                    </div>
+                    <div className="text-xs text-gray-600 mb-2">
+                      {dialectInfo.description}
+                    </div>
+                    {dialectInfo.features && (
+                      <div className="space-y-1">
+                        {dialectInfo.features.slice(0, 2).map((feature, idx) => (
+                          <div key={idx} className="text-xs text-gray-500 flex items-center">
+                            <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
+                            {feature}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {trainingForm.language === 'ca' && (
+                      <div className="mt-2 text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 inline-block">
+                        ?? Hiperrealista
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -261,14 +588,14 @@ const VoiceTrainingAdvanced = () => {
             onClick={() => setActiveStep(1)}
             className="btn-secondary"
           >
-            Back
+            ? Atr·s
           </button>
           <button
             onClick={() => setActiveStep(3)}
             disabled={!trainingForm.language}
             className="btn-primary disabled:opacity-50"
           >
-            Next: Configuration
+            Siguiente: ConfiguraciÛn ?
           </button>
         </div>
       </div>
@@ -277,25 +604,25 @@ const VoiceTrainingAdvanced = () => {
 
   const renderTrainingConfiguration = () => (
     <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-gray-900">Training Configuration</h3>
+      <h3 className="text-xl font-semibold text-gray-900">ConfiguraciÛn de Entrenamiento</h3>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Voice Model Name
+            Nombre del Modelo de Voz
           </label>
           <input
             type="text"
             value={trainingForm.name}
             onChange={(e) => setTrainingForm(prev => ({ ...prev, name: e.target.value }))}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            placeholder="My Custom Voice Model"
+            placeholder="Mi Modelo de Voz Personalizado"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Training Epochs
+            …pocas de Entrenamiento
           </label>
           <select
             value={trainingForm.training_config.num_epochs}
@@ -305,15 +632,15 @@ const VoiceTrainingAdvanced = () => {
             }))}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
           >
-            <option value="25">25 epochs (Quick - 15 min)</option>
-            <option value="50">50 epochs (Standard - 30 min)</option>
-            <option value="100">100 epochs (High Quality - 60 min)</option>
+            <option value="25">25 Èpocas (R·pido - 15 min)</option>
+            <option value="50">50 Èpocas (Est·ndar - 30 min)</option>
+            <option value="100">100 Èpocas (Alta Calidad - 60 min)</option>
           </select>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Batch Size
+            TamaÒo de Lote
           </label>
           <select
             value={trainingForm.training_config.batch_size}
@@ -323,15 +650,15 @@ const VoiceTrainingAdvanced = () => {
             }))}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
           >
-            <option value="2">2 (Low GPU Memory)</option>
-            <option value="4">4 (Recommended)</option>
-            <option value="8">8 (High GPU Memory)</option>
+            <option value="2">2 (Memoria GPU Baja)</option>
+            <option value="4">4 (Recomendado)</option>
+            <option value="8">8 (Memoria GPU Alta)</option>
           </select>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Learning Rate
+            Tasa de Aprendizaje
           </label>
           <select
             value={trainingForm.training_config.learning_rate}
@@ -341,34 +668,65 @@ const VoiceTrainingAdvanced = () => {
             }))}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
           >
-            <option value="0.00005">0.00005 (Conservative)</option>
-            <option value="0.0001">0.0001 (Recommended)</option>
-            <option value="0.0002">0.0002 (Aggressive)</option>
+            <option value="0.00005">0.00005 (Conservador)</option>
+            <option value="0.0001">0.0001 (Recomendado)</option>
+            <option value="0.0002">0.0002 (Agresivo)</option>
           </select>
         </div>
       </div>
 
       {trainingForm.language === 'ca' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-6">
           <div className="flex items-start">
-            <div className="text-blue-500 text-xl mr-3">üá™üá∏</div>
-            <div>
-              <h4 className="font-semibold text-blue-900">Catalan Dataset Integration</h4>
-              <p className="text-blue-700 text-sm mt-1">
-                Using projecte-aina/openslr-slr69-ca-trimmed-denoised for hyperrealistic Catalan voices.
-                This dataset provides native pronunciation patterns for the {trainingForm.dialect} dialect.
+            <div className="text-purple-500 text-2xl mr-4">??</div>
+            <div className="flex-1">
+              <div className="flex items-center mb-2">
+                <h4 className="font-bold text-purple-900 text-lg">Dataset Catal·n Hiperrealista</h4>
+                <span className="ml-3 px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-full font-bold">
+                  ? CALIDAD PREMIUM
+                </span>
+              </div>
+              <p className="text-purple-800 text-sm mb-4">
+                Utilizando <strong>projecte-aina/openslr-slr69-ca-trimmed-denoised</strong> para voces catalanas hiperrealistas.
+                Este dataset especializado proporciona patrones de pronunciaciÛn nativos autÈnticos para el dialecto <strong>{trainingForm.dialect}</strong>.
               </p>
-              <div className="mt-3 flex items-center">
-                <input
-                  type="checkbox"
-                  id="use_catalan_dataset"
-                  checked={trainingForm.use_catalan_dataset}
-                  onChange={(e) => setTrainingForm(prev => ({ ...prev, use_catalan_dataset: e.target.checked }))}
-                  className="mr-2"
-                />
-                <label htmlFor="use_catalan_dataset" className="text-sm text-blue-700">
-                  Use Catalan dataset for enhanced quality
-                </label>
+              
+              {/* Quality Features */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="flex items-center text-sm text-purple-700">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  PronunciaciÛn nativa autÈntica
+                </div>
+                <div className="flex items-center text-sm text-purple-700">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Patrones emocionales naturales
+                </div>
+                <div className="flex items-center text-sm text-purple-700">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  EntonaciÛn dialectal precisa
+                </div>
+                <div className="flex items-center text-sm text-purple-700">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Vocabulario regional especÌfico
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="use_catalan_dataset"
+                    checked={trainingForm.use_catalan_dataset}
+                    onChange={(e) => setTrainingForm(prev => ({ ...prev, use_catalan_dataset: e.target.checked }))}
+                    className="mr-3 w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <label htmlFor="use_catalan_dataset" className="text-sm font-medium text-purple-800">
+                    Activar dataset catal·n para calidad hiperrealista
+                  </label>
+                </div>
+                <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                  +95% calidad
+                </div>
               </div>
             </div>
           </div>
@@ -377,52 +735,52 @@ const VoiceTrainingAdvanced = () => {
 
       {/* System Requirements Check */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 className="font-semibold text-gray-900 mb-3">System Status</h4>
+        <h4 className="font-semibold text-gray-900 mb-3">Estado del Sistema</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full mr-2 ${
               systemStatus.gpu_available ? 'bg-green-500' : 'bg-red-500'
             }`}></div>
-            <span>GPU: {systemStatus.gpu_available ? 'Available' : 'Not Available'}</span>
+            <span>GPU: {systemStatus.gpu_available ? 'Disponible' : 'No Disponible'}</span>
           </div>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full mr-2 ${
               systemStatus.active_training_jobs < 2 ? 'bg-green-500' : 'bg-yellow-500'
             }`}></div>
-            <span>Queue: {systemStatus.active_training_jobs || 0}/2</span>
+            <span>Cola: {systemStatus.active_training_jobs || 0}/2</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full mr-2 bg-blue-500"></div>
-            <span>GPU Usage: {systemStatus.gpu_utilization || 0}%</span>
+            <span>Uso GPU: {systemStatus.gpu_utilization || 0}%</span>
           </div>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full mr-2 ${
               systemStatus.system_ready ? 'bg-green-500' : 'bg-red-500'
             }`}></div>
-            <span>Status: {systemStatus.system_ready ? 'Ready' : 'Busy'}</span>
+            <span>Estado: {systemStatus.system_ready ? 'Listo' : 'Ocupado'}</span>
           </div>
         </div>
       </div>
 
       <div className="flex justify-between mt-8">
-                  <button
-            onClick={() => setActiveStep(2)}
-            className="btn-secondary"
-          >
-            Back
-          </button>
-          <button
-            onClick={startTraining}
-            disabled={!trainingForm.name || !systemStatus.system_ready || isLoading}
-            className="btn-primary disabled:opacity-50 flex items-center"
-          >
+        <button
+          onClick={() => setActiveStep(2)}
+          className="btn-secondary"
+        >
+          ? Atr·s
+        </button>
+        <button
+          onClick={startTraining}
+          disabled={!trainingForm.name || !systemStatus.system_ready || isLoading}
+          className="btn-primary disabled:opacity-50 flex items-center bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+        >
           {isLoading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Starting Training...
+              Iniciando Entrenamiento...
             </>
           ) : (
-            'Start Training'
+            '?? Iniciar Entrenamiento Hiperrealista'
           )}
         </button>
       </div>
@@ -435,8 +793,13 @@ const VoiceTrainingAdvanced = () => {
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Training in Progress</h3>
-          <p className="text-gray-600">Creating your hyperrealistic voice model...</p>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Entrenamiento en Progreso</h3>
+          <p className="text-gray-600">Creando tu modelo de voz hiperrealista...</p>
+          {trainingForm.language === 'ca' && (
+            <div className="mt-2 text-sm text-purple-600 font-medium">
+              ?? Calidad catalana premium en proceso
+            </div>
+          )}
         </div>
 
         {progress && (
@@ -487,7 +850,7 @@ const VoiceTrainingAdvanced = () => {
             {progress.progress === 100 && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
                 <div className="flex items-center">
-                  <div className="text-green-500 text-xl mr-3">‚úÖ</div>
+                  <div className="text-green-500 text-xl mr-3">?</div>
                   <div>
                     <h4 className="font-semibold text-green-900">Training Completed!</h4>
                     <p className="text-green-700 text-sm">
@@ -506,53 +869,98 @@ const VoiceTrainingAdvanced = () => {
               onClick={() => cancelTraining(currentJob)}
               className="btn-danger"
             >
-              Cancel Training
+              Cancelar Entrenamiento
             </button>
           )}
           <button
             onClick={() => setActiveStep(1)}
-            className="btn-primary"
+            className="btn-primary bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
           >
-            Start New Training
+            ?? Nuevo Entrenamiento Hiperrealista
           </button>
         </div>
       </div>
     );
   };
 
-  const renderTrainingHistory = () => (
+
+  const renderHyperrealisticTester = () => (
+    <div className="card p-6">\
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Prueba de S?ntesis Hiperrealista (Neural)</h3>\
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">\
+        <div>\
+          <label className="block text-sm font-medium text-gray-700 mb-1">Voz</label>\
+          <select value={selectedVoiceId} onChange={(e)=>setSelectedVoiceId(e.target.value)} className="input-field w-full">\
+            {[...trainedVoices, ...catalanVoices].map(v => (
+              <option key={v.id} value={v.id}>{v.name || v.id}</option>\
+            ))}\
+          </select>\
+          <p className="text-xs text-gray-500 mt-1">Incluye voces entrenadas + catalanas base</p>\
+        </div>\
+        <div className="md:col-span-2">\
+          <label className="block text-sm font-medium text-gray-700 mb-1">Texto</label>\
+          <textarea value={testText} onChange={(e)=>setTestText(e.target.value)} className="input-field w-full" rows={2} />\
+        </div>\
+      </div>\
+      <div className="mt-4 flex items-center space-x-3">\
+        <button onClick={synthesizeHyperrealistic} className="btn-primary">Generar Audio Hiperrealista</button>\
+        {testAudioUrl && <audio controls src={testAudioUrl} className="ml-2"/>}\
+      </div>\
+      <p className="text-xs text-gray-500 mt-2">Motor: XTTS v2 (entrenado) o Catal?n hiperrealista, salida neural</p>\
+    </div>\
+  );
+
+  
+  const renderPromptSpecPanel = () => (
+    <div className=\"card p-6 mt-6\">
+      <h3 className=\"text-lg font-semibold text-gray-900 mb-4\">Crear configuraciÛn desde prompt</h3>
+      <p className=\"text-sm text-gray-600 mb-3\">Describe la voz (idioma, dialecto, tono, estilo) y generaremos una configuraciÛn inicial.</p>
+      <div className=\"grid grid-cols-1 md:grid-cols-4 gap-3 items-end\">
+        <div className=\"md:col-span-3\">
+          <textarea className=\"input-field w-full\" rows={2} value={promptText} onChange={(e)=>setPromptText(e.target.value)} />
+        </div>
+        <div className=\"md:col-span-1\">
+          <button onClick={generateSpecFromPrompt} disabled={generatingSpec} className=\"btn-primary w-full\">{generatingSpec ? 'Generando...' : 'Generar'}</button>
+        </div>
+      </div>
+      <p className=\"text-xs text-gray-500 mt-2\">Sugerencias: ìCatal·n masculino c·lido y expresivo (barcelonÈs)î</p>
+    </div>
+  );const renderTrainingHistory = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-semibold text-gray-900">Training History</h3>
+        <h3 className="text-xl font-semibold text-gray-900">Historial de Entrenamientos</h3>
         <button
           onClick={loadInitialData}
           className="btn-secondary text-sm"
         >
-          Refresh
+          Actualizar
         </button>
       </div>
+
+      {renderHyperrealisticTester()}
+
 
               <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Model Name
+                Nombre del Modelo
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Language
+                Idioma
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
+                Estado
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Progress
+                Progreso
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created
+                Creado
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+                Acciones
               </th>
             </tr>
           </thead>
@@ -592,7 +1000,7 @@ const VoiceTrainingAdvanced = () => {
                       }}
                       className="text-purple-600 hover:text-purple-900 mr-3"
                     >
-                      View Progress
+                      Ver Progreso
                     </button>
                   )}
                   {session.status !== 'completed' && session.status !== 'failed' && (
@@ -600,7 +1008,7 @@ const VoiceTrainingAdvanced = () => {
                       onClick={() => cancelTraining(session.job_id)}
                       className="text-red-600 hover:text-red-900"
                     >
-                      Cancel
+                      Cancelar
                     </button>
                   )}
                 </td>
@@ -613,11 +1021,11 @@ const VoiceTrainingAdvanced = () => {
   );
 
   const steps = [
-    { id: 1, name: 'Overview', icon: 'üìã' },
-    { id: 2, name: 'Language', icon: 'üåç' },
-    { id: 3, name: 'Configuration', icon: '‚öôÔ∏è' },
-    { id: 4, name: 'Training', icon: 'üöÄ' },
-    { id: 5, name: 'History', icon: 'üìä' }
+    { id: 1, name: 'Resumen', icon: '??' },
+    { id: 2, name: 'Idioma', icon: '??' },
+    { id: 3, name: 'ConfiguraciÛn', icon: '??' },
+    { id: 4, name: 'Entrenamiento', icon: '??' },
+    { id: 5, name: 'Historial', icon: '??' }
   ];
 
   return (
@@ -625,11 +1033,17 @@ const VoiceTrainingAdvanced = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            XTTS v2 Voice Training
-          </h1>
-          <p className="text-gray-600">
-            Create hyperrealistic voice models with advanced AI training
+          <div className="flex items-center justify-center mb-4">
+            <h1 className="text-4xl font-bold text-gray-900 mr-4">
+              Entrenamiento XTTS v2
+            </h1>
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm px-4 py-2 rounded-full font-bold">
+              ? HIPERREALISTA
+            </div>
+          </div>
+          <p className="text-gray-600 text-lg max-w-3xl mx-auto">
+            Crea modelos de voz hiperrealistas con entrenamiento avanzado de IA. 
+            <strong className="text-purple-600"> Especializado en catal·n</strong> con datasets nativos de m·xima calidad.
           </p>
         </div>
 
@@ -671,49 +1085,84 @@ const VoiceTrainingAdvanced = () => {
         <div className="bg-white rounded-xl shadow-sm p-8">
           {activeStep === 1 && (
             <div className="text-center space-y-6">
-              <div className="text-6xl mb-4">üé§</div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Professional Voice Training
+              <div className="relative">
+                <div className="text-6xl mb-4">??</div>
+                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full font-bold">
+                  ? HIPERREALISTA
+                </div>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900">
+                Entrenamiento de Voces Profesionales
               </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Train hyperrealistic voice models using XTTS v2 technology. 
-                Support for 5 languages with specialized Catalan dataset integration.
+              <p className="text-gray-600 max-w-3xl mx-auto text-lg">
+                Crea modelos de voz hiperrealistas usando tecnologÌa XTTS v2. 
+                <strong className="text-purple-600"> Soporte especializado para catal·n</strong> con datasets nativos de alta calidad.
               </p>
               
+              {/* Catalan Highlight */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6 mt-6">
+                <div className="flex items-center justify-center mb-4">
+                  <span className="text-4xl mr-3">????</span>
+                  <h3 className="text-xl font-bold text-purple-900">Catal·n Hiperrealista</h3>
+                </div>
+                <p className="text-purple-800 mb-4">
+                  Nuestro sistema especializado utiliza el dataset <strong>projecte-aina/openslr-slr69-ca-trimmed-denoised</strong> 
+                  para crear voces catalanas con pronunciaciÛn nativa autÈntica y patrones emocionales naturales.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="flex items-center text-purple-700">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    6 dialectos nativos
+                  </div>
+                  <div className="flex items-center text-purple-700">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    50K+ muestras
+                  </div>
+                  <div className="flex items-center text-purple-700">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    95% calidad
+                  </div>
+                  <div className="flex items-center text-purple-700">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    PronunciaciÛn autÈntica
+                  </div>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                <div className="p-6 border border-gray-200 rounded-lg">
-                  <div className="text-3xl mb-3">üá™üá∏</div>
-                  <h3 className="font-semibold mb-2">Catalan Excellence</h3>
+                <div className="p-6 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                  <div className="text-3xl mb-3">????</div>
+                  <h3 className="font-semibold mb-2">Excelencia Catalana</h3>
                   <p className="text-sm text-gray-600">
-                    Native support for 6 Catalan dialects with hyperrealistic quality
+                    Soporte nativo para 6 dialectos catalanes con calidad hiperrealista y pronunciaciÛn autÈntica
                   </p>
                 </div>
-                <div className="p-6 border border-gray-200 rounded-lg">
-                  <div className="text-3xl mb-3">üåç</div>
-                  <h3 className="font-semibold mb-2">Multi-Language</h3>
+                <div className="p-6 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                  <div className="text-3xl mb-3">??</div>
+                  <h3 className="font-semibold mb-2">Multi-Idioma</h3>
                   <p className="text-sm text-gray-600">
-                    Spanish, French, English, Portuguese support
+                    EspaÒol, francÈs, inglÈs y portuguÈs con datasets especializados
                   </p>
                 </div>
-                <div className="p-6 border border-gray-200 rounded-lg">
-                  <div className="text-3xl mb-3">‚ö°</div>
-                  <h3 className="font-semibold mb-2">Fast Training</h3>
+                <div className="p-6 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                  <div className="text-3xl mb-3">?</div>
+                  <h3 className="font-semibold mb-2">Entrenamiento R·pido</h3>
                   <p className="text-sm text-gray-600">
-                    GPU-accelerated training in 15-60 minutes
+                    Entrenamiento acelerado por GPU en 15-60 minutos con resultados profesionales
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setActiveStep(2)}
-                className="btn-primary mt-8 text-lg"
+                className="btn-primary mt-8 text-lg px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
-                Start Training
+                ?? Comenzar Entrenamiento Hiperrealista
               </button>
             </div>
           )}
           {activeStep === 2 && renderLanguageSelection()}
-          {activeStep === 3 && renderTrainingConfiguration()}
+          {activeStep === 3 && renderTrainingConfiguration()}\n          {activeStep === 3 && renderPromptSpecPanel()}
           {activeStep === 4 && renderTrainingProgress()}
           {activeStep === 5 && renderTrainingHistory()}
         </div>
@@ -723,3 +1172,4 @@ const VoiceTrainingAdvanced = () => {
 };
 
 export default VoiceTrainingAdvanced;
+

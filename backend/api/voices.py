@@ -79,8 +79,47 @@ async def import_voice_model(file: UploadFile, name: str = "", language: str = "
 @router.get("/voices")
 async def list_voices() -> Dict[str, Any]:
     try:
-        items = sql_db.get_voice_models()
-        return {"voices": items}
+        # Use the Integrated Voice System (functional and realistic)
+        try:
+            from backend.integrated_voice_system import get_integrated_voices
+            integrated_voices = get_integrated_voices()
+            print(f"✅ Integrated voice system loaded: {len(integrated_voices['voices'])} voices")
+            return integrated_voices
+        except ImportError as e:
+            print(f"⚠️ Integrated voice system not available: {e}")
+            
+        # Fallback to basic system
+        try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            voices = engine.getProperty('voices') or []
+            
+            basic_voices = []
+            for voice in voices:
+                name = getattr(voice, 'name', 'Unknown')
+                voice_id = getattr(voice, 'id', '')
+                langs = getattr(voice, 'languages', [])
+                
+                basic_voices.append({
+                    "id": f"basic_{voice_id.split('\\')[-1] if '\\' in voice_id else voice_id}",
+                    "name": f"{name} (Basic)",
+                    "language": "unknown",
+                    "dialect": "standard",
+                    "status": "ready",
+                    "progress": 100,
+                    "quality": "basic",
+                    "real_model": True,
+                    "type": "basic_system",
+                    "system_id": voice_id,
+                    "created_at": datetime.utcnow().isoformat()
+                })
+            
+            return {"voices": basic_voices}
+            
+        except Exception as e:
+            print(f"Error in fallback voices: {e}")
+            return {"voices": []}
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,0 +1,236 @@
+{
+  "system_name": "VeuPlus Ultimate Catalan TTS",
+  "version": "1.0.0",
+  "created_at": "2025-09-20T23:55:13.410870",
+  "components": {
+    "segre_phonetics": true,
+    "aina_corpus": true,
+    "custom_recordings": 4,
+    "trained_models": 4
+  },
+  "voice_models": {
+    "trained_senyor_catala_1": {
+      "model_id": "trained_senyor_catala_1",
+      "name": "Sr. Català - Voz Masculina Barcelona (Premium)",
+      "language": "ca",
+      "dialect": "central",
+      "gender": "male",
+      "quality": "ultra_trained",
+      "type": "trained_custom",
+      "voice_profile": {
+        "fundamental_frequency": {
+          "mean": 121.1520885899348,
+          "range": 350.90909090909093,
+          "variability": 69.15224333954468
+        },
+        "vocal_characteristics": {
+          "energy_level": 0.06979495286941528,
+          "spectral_centroid": 4590.1364852064735,
+          "mfcc_profile": [
+            -247.64102172851562,
+            7.060206890106201,
+            8.309793472290039,
+            27.191078186035156,
+            40.45375061035156,
+            -9.841081619262695,
+            -5.404501914978027,
+            -1.1627596616744995,
+            -16.68262481689453,
+            3.0297446250915527,
+            -8.125266075134277,
+            0.7135738134384155,
+            -9.787487030029297
+          ]
+        },
+        "speaking_style": {
+          "pace": "moderate",
+          "clarity": "high",
+          "expressiveness": "natural"
+        }
+      },
+      "training_data": {
+        "personal_samples": 1,
+        "aina_samples": 0,
+        "total_duration": 26.671020408163265,
+        "segre_enhanced": false
+      },
+      "capabilities": [
+        "segre_phonetics",
+        "aina_enhanced",
+        "ultra_personalized",
+        "dialect_specific"
+      ],
+      "trained_at": "2025-09-20T23:55:13.382397",
+      "status": "ready"
+    },
+    "trained_dona_catalana": {
+      "model_id": "trained_dona_catalana",
+      "name": "Sra. Catalana - Voz Femenina Barcelona (Premium)",
+      "language": "ca",
+      "dialect": "central",
+      "gender": "female",
+      "quality": "ultra_trained",
+      "type": "trained_custom",
+      "voice_profile": {
+        "fundamental_frequency": {
+          "mean": 201.87137996780427,
+          "range": 301.11579721992916,
+          "variability": 78.79332309002515
+        },
+        "vocal_characteristics": {
+          "energy_level": 0.09020566940307617,
+          "spectral_centroid": 1572.80758901701,
+          "mfcc_profile": [
+            -338.5330505371094,
+            87.5314712524414,
+            -11.109260559082031,
+            24.28660774230957,
+            -8.075018882751465,
+            -13.09153938293457,
+            -4.090587139129639,
+            -11.22486686706543,
+            -10.765046119689941,
+            -7.9588422775268555,
+            -9.346668243408203,
+            -9.201778411865234,
+            -10.831929206848145
+          ]
+        },
+        "speaking_style": {
+          "pace": "moderate",
+          "clarity": "high",
+          "expressiveness": "natural"
+        }
+      },
+      "training_data": {
+        "personal_samples": 1,
+        "aina_samples": 0,
+        "total_duration": 29.466122448979593,
+        "segre_enhanced": false
+      },
+      "capabilities": [
+        "segre_phonetics",
+        "aina_enhanced",
+        "ultra_personalized",
+        "dialect_specific"
+      ],
+      "trained_at": "2025-09-20T23:55:13.392588",
+      "status": "ready"
+    },
+    "trained_senyor_catala_2": {
+      "model_id": "trained_senyor_catala_2",
+      "name": "Sr. Català Pro - Voz Masculina Barcelona (Avanzada)",
+      "language": "ca",
+      "dialect": "central",
+      "gender": "male",
+      "quality": "ultra_trained",
+      "type": "trained_custom",
+      "voice_profile": {
+        "fundamental_frequency": {
+          "mean": 158.836752916399,
+          "range": 350.90909090909093,
+          "variability": 53.004149871171386
+        },
+        "vocal_characteristics": {
+          "energy_level": 0.12439918518066406,
+          "spectral_centroid": 2449.7355398754976,
+          "mfcc_profile": [
+            -245.57933044433594,
+            95.436279296875,
+            -17.88454246520996,
+            27.11904525756836,
+            1.437917947769165,
+            -3.3071556091308594,
+            -3.481692314147949,
+            -3.0204665660858154,
+            -11.052742958068848,
+            -5.502521514892578,
+            1.1193078756332397,
+            -10.692838668823242,
+            -6.006778240203857
+          ]
+        },
+        "speaking_style": {
+          "pace": "moderate",
+          "clarity": "high",
+          "expressiveness": "natural"
+        }
+      },
+      "training_data": {
+        "personal_samples": 1,
+        "aina_samples": 0,
+        "total_duration": 14.680816326530612,
+        "segre_enhanced": true
+      },
+      "capabilities": [
+        "segre_phonetics",
+        "aina_enhanced",
+        "ultra_personalized",
+        "dialect_specific"
+      ],
+      "trained_at": "2025-09-20T23:55:13.399273",
+      "status": "ready"
+    },
+    "trained_senyor_catala_extended": {
+      "model_id": "trained_senyor_catala_extended",
+      "name": "Sr. Català Extended - Voz Masculina Barcelona (Extendida)",
+      "language": "ca",
+      "dialect": "central",
+      "gender": "male",
+      "quality": "ultra_trained",
+      "type": "trained_custom",
+      "voice_profile": {
+        "fundamental_frequency": {
+          "mean": 120.25508398251417,
+          "range": 327.0827781534121,
+          "variability": 45.90159774094648
+        },
+        "vocal_characteristics": {
+          "energy_level": 0.11489665508270264,
+          "spectral_centroid": 1728.3606018082598,
+          "mfcc_profile": [
+            -214.98529052734375,
+            117.62325286865234,
+            -7.111013412475586,
+            24.606616973876953,
+            32.71665573120117,
+            1.3814287185668945,
+            -12.286273956298828,
+            6.918581008911133,
+            -6.346621036529541,
+            -1.202992558479309,
+            -0.5871078372001648,
+            3.4155330657958984,
+            -4.608615398406982
+          ]
+        },
+        "speaking_style": {
+          "pace": "moderate",
+          "clarity": "high",
+          "expressiveness": "natural"
+        }
+      },
+      "training_data": {
+        "personal_samples": 1,
+        "aina_samples": 0,
+        "total_duration": 23.875918367346937,
+        "segre_enhanced": true
+      },
+      "capabilities": [
+        "segre_phonetics",
+        "aina_enhanced",
+        "ultra_personalized",
+        "dialect_specific"
+      ],
+      "trained_at": "2025-09-20T23:55:13.405756",
+      "status": "ready"
+    }
+  },
+  "capabilities": [
+    "catalan_phonetics",
+    "multi_dialect",
+    "gender_specific",
+    "ultra_personalized",
+    "aina_enhanced"
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "id": "f4b142a0-95ee-4996-8c7b-fd49274a35b5",
+  "name": "Primera Voz Masculina Ultimate",
+  "speaker_name": "Primera Voz Masculina",
+  "gender": "masculine",
+  "language": "ca",
+  "dialect": "central",
+  "accent": "barcelona",
+  "quality": "hyperrealistic_ultimate_segre",
+  "created_at": "2025-09-20T17:31:28.817362",
+  "model_type": "ultimate_catalan_voice",
+  "training_data": {
+    "recording_count": 1,
+    "recordings": [
+      {
+        "voice_id": "primera_voz_masculina",
+        "path": "backend/voice_models/user_reference_voice.mp3",
+        "context": "social_formal"
+      }
+    ],
+    "phonetic_transcriptions": [
+      {
+        "original_text": "Treballadores de cures, personal sanitari, professionals dels cossos de seguretat i d'emergència aquests dies sacrifiquen trobades familiars per cuidar de nosaltres, per a què estiguem segurs i per estar preparats davant de qualsevol incidència.",
+        "phonetic_words": [
+          {
+            "word": "treballadores",
+            "phonetic": "t r e b a ʎ a d o r e s",
+            "original": "treballadores"
+          },
+          {
+            "word": "de",
+            "phonetic": "d e",
+            "original": "de"
+          },
+          {
+            "word": "cures",
+            "phonetic": "k u r e s",
+            "original": "cures,"
+          },
+          {
+            "word": "personal",
+            "phonetic": "p e r s o n a l",
+            "original": "personal"
+          },
+          {
+            "word": "sanitari",
+            "phonetic": "s a n i t a r i",
+            "original": "sanitari,"
+          },
+          {
+            "word": "professionals",
+            "phonetic": "p r o f e s s i o n a l s",
+            "original": "professionals"
+          },
+          {
+            "word": "dels",
+            "phonetic": "d e l s",
+            "original": "dels"
+          },
+          {
+            "word": "cossos",
+            "phonetic": "k o s s o s",
+            "original": "cossos"
+          },
+          {
+            "word": "de",
+            "phonetic": "d e",
+            "original": "de"
+          },
+          {
+            "word": "seguretat",
+            "phonetic": "s e g u r e t a t",
+            "original": "seguretat"
+          },
+          {
+            "word": "i",
+            "phonetic": "i",
+            "original": "i"
+          },
+          {
+            "word": "demergència",
+            "phonetic": "d e m e r g E n k i a",
+            "original": "d'emergència"
+          },
+          {
+            "word": "aquests",
+            "phonetic": "a k $ 1 s t s",
+            "original": "aquests"
+          },
+          {
+            "word": "dies",
+            "phonetic": "d i e s",
+            "original": "dies"
+          },
+          {
+            "word": "sacrifiquen",
+            "phonetic": "s a k r i f i k $ 1 n",
+            "original": "sacrifiquen"
+          },
+          {
+            "word": "trobades",
+            "phonetic": "t r o b a d e s",
+            "original": "trobades"
+          },
+          {
+            "word": "familiars",
+            "phonetic": "f a m i l i a r s",
+            "original": "familiars"
+          },
+          {
+            "word": "per",
+            "phonetic": "p e r",
+            "original": "per"
+          },
+          {
+            "word": "cuidar",
+            "phonetic": "k u i d a r",
+            "original": "cuidar"
+          },
+          {
+            "word": "de",
+            "phonetic": "d e",
+            "original": "de"
+          },
+          {
+            "word": "nosaltres",
+            "phonetic": "n o s a l t r e s",
+            "original": "nosaltres,"
+          },
+          {
+            "word": "per",
+            "phonetic": "p e r",
+            "original": "per"
+          },
+          {
+            "word": "a",
+            "phonetic": "a",
+            "original": "a"
+          },
+          {
+            "word": "què",
+            "phonetic": "k u E",
+            "original": "què"
+          },
+          {
+            "word": "estiguem",
+            "phonetic": "e s t i g $ 1 m",
+            "original": "estiguem"
+          },
+          {
+            "word": "segurs",
+            "phonetic": "s e g u r s",
+            "original": "segurs"
+          },
+          {
+            "word": "i",
+            "phonetic": "i",
+            "original": "i"
+          },
+          {
+            "word": "per",
+            "phonetic": "p e r",
+            "original": "per"
+          },
+          {
+            "word": "estar",
+            "phonetic": "e s t a r",
+            "original": "estar"
+          },
+          {
+            "word": "preparats",
+            "phonetic": "p r e p a r a t s",
+            "original": "preparats"
+          },
+          {
+            "word": "davant",
+            "phonetic": "d a b a n t",
+            "original": "davant"
+          },
+          {
+            "word": "de",
+            "phonetic": "d e",
+            "original": "de"
+          },
+          {
+            "word": "qualsevol",
+            "phonetic": "k u a l s e b o l",
+            "original": "qualsevol"
+          },
+          {
+            "word": "incidència",
+            "phonetic": "i n k i d E n k i a",
+            "original": "incidència."
+          }
+        ],
+        "full_phonetic": "t r e b a ʎ a d o r e s d e k u r e s p e r s o n a l s a n i t a r i p r o f e s s i o n a l s d e l s k o s s o s d e s e g u r e t a t i d e m e r g E n k i a a k $ 1 s t s d i e s s a k r i f i k $ 1 n t r o b a d e s f a m i l i a r s p e r k u i d a r d e n o s a l t r e s p e r a k u E e s t i g $ 1 m s e g u r s i p e r e s t a r p r e p a r a t s d a b a n t d e k u a l s e b o l i n k i d E n k i a"
+      }
+    ],
+    "reference_texts": [
+      "Treballadores de cures, personal sanitari, professionals dels cossos de seguretat i d'emergència aquests dies sacrifiquen trobades familiars per cuidar de nosaltres, per a què estiguem segurs i per estar preparats davant de qualsevol incidència."
+    ]
+  },
+  "segre_config": {
+    "dialect": "central",
+    "phonetic_support": true,
+    "transcription_quality": "professional"
+  },
+  "voice_characteristics": {
+    "gender_specific": true,
+    "accent_specific": true,
+    "phonetically_aligned": true,
+    "multi_context": false
+  }
+}

@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  veuplus-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    ports:
+      - "8003:8003"
+    environment:
+      - PYTHONPATH=/app
+      - EDGE_TTS_ENABLED=true
+      - VOICEBOT_INTEGRATION=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend/training_data:/app/backend/training_data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  veuplus-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8003
+    depends_on:
+      - veuplus-backend
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.production.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - veuplus-backend
+      - veuplus-frontend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: veuplus-network
+
+
+
+
+
+
+
+
+
+

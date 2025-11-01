@@ -1,0 +1,41 @@
+{
+  "id": "senyor_catala_2",
+  "source_file": "C:\\Users\\merit\\Downloads\\ElevenLabs_2025-09-20T15_21_01_noi catala veu rara_gen_sp100_s50_sb75_b_v3.mp3",
+  "processed_file": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\senyor_catala_2\\processed.wav",
+  "duration": 14.680816326530612,
+  "sample_rate": 22050,
+  "gender": "male",
+  "dialect": "central",
+  "description": "Voz masculina catalana - Barcelona (Grabación 3)",
+  "transcription": "Treballadores de cures, personal sanitari, professionals dels cossos de seguretat i d'emergència aquests dies sacrifiquen trobades familiars per cuidar de nosaltres, per a què estiguem segurs i per estar preparats davant de qualsevol incidència.",
+  "phonetic_data": {
+    "original": "Treballadores de cures, personal sanitari, professionals dels cossos de seguretat i d'emergència aquests dies sacrifiquen trobades familiars per cuidar de nosaltres, per a què estiguem segurs i per estar preparats davant de qualsevol incidència.",
+    "phonetic": "t r e b a ʎ a d o r e z d e k u r e s , p e r s o n a l s a n i t a r i , p r o f e s s i o n a l z d e l s k o s s o z d e s e g u r e t a t i d ' e m e r g E n k i a a k $ 1 s t z d i e s s a k r i f i k $ 1 n t r o b a d e s f a m i l i a r s p e r k u i d a r d e n o s a l t r e s , p e r a k u E e s t i g $ 1 m s e g u r s i p e r e s t a r p r e p a r a t z d a b a n t d e k u a l s e b o l i n k i d E n k i a .",
+    "dialect": "central"
+  },
+  "voice_features": {
+    "f0_mean": 158.836752916399,
+    "f0_std": 53.004149871171386,
+    "f0_min": 50.0,
+    "f0_max": 400.90909090909093,
+    "spectral_centroid_mean": 2449.7355398754976,
+    "mfcc_mean": [
+      -245.57933044433594,
+      95.436279296875,
+      -17.88454246520996,
+      27.11904525756836,
+      1.437917947769165,
+      -3.3071556091308594,
+      -3.481692314147949,
+      -3.0204665660858154,
+      -11.052742958068848,
+      -5.502521514892578,
+      1.1193078756332397,
+      -10.692838668823242,
+      -6.006778240203857
+    ],
+    "energy_mean": 0.12439918518066406,
+    "energy_std": 0.0721442699432373
+  },
+  "processed_at": "2025-09-20T23:54:32.837306"
+}

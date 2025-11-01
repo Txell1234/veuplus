@@ -1,0 +1,37 @@
+{
+  "id": "dona_catalana",
+  "source_file": "C:\\Users\\merit\\Downloads\\7100e6ab-bc7a-4b03-80cc-a60da5b8f0c4.mp3",
+  "processed_file": "C:\\Users\\merit\\Desktop\\VeusPlus\\backend\\training_data\\dona_catalana\\processed.wav",
+  "duration": 29.466122448979593,
+  "sample_rate": 22050,
+  "gender": "female",
+  "dialect": "central",
+  "description": "Voz femenina catalana - Barcelona (Grabación 2)",
+  "transcription": null,
+  "phonetic_data": null,
+  "voice_features": {
+    "f0_mean": 201.87137996780427,
+    "f0_std": 78.79332309002515,
+    "f0_min": 50.0,
+    "f0_max": 351.11579721992916,
+    "spectral_centroid_mean": 1572.80758901701,
+    "mfcc_mean": [
+      -338.5330505371094,
+      87.5314712524414,
+      -11.109260559082031,
+      24.28660774230957,
+      -8.075018882751465,
+      -13.09153938293457,
+      -4.090587139129639,
+      -11.22486686706543,
+      -10.765046119689941,
+      -7.9588422775268555,
+      -9.346668243408203,
+      -9.201778411865234,
+      -10.831929206848145
+    ],
+    "energy_mean": 0.09020566940307617,
+    "energy_std": 0.0933738723397255
+  },
+  "processed_at": "2025-09-20T23:54:32.616519"
+}

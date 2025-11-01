@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""
+AGI Script per VeuPlus - Processar entrada de veu
+"""
+
+import sys
+import os
+import requests
+import base64
+import json
+from datetime import datetime
+
+def log_message(message):
+    """Log message to Asterisk"""
+    print(f"VERBOSE \"{message}\" 1", flush=True)
+
+def main():
+    try:
+        # Llegir paràmetres AGI
+        call_id = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+        audio_file = sys.argv[2] if len(sys.argv) > 2 else ""
+        language = sys.argv[3] if len(sys.argv) > 3 else "ca"
+        voice_system = sys.argv[4] if len(sys.argv) > 4 else "catalan"
+        
+        log_message(f"VeuPlus Process: {call_id} ({language})")
+        
+        if not audio_file or not os.path.exists(audio_file):
+            log_message("ERROR: Audio file not found")
+            print("SET VARIABLE PROCESS_ERROR 1")
+            return
+        
+        # Llegir àudio
+        with open(audio_file, "rb") as f:
+            audio_data = f.read()
+        
+        audio_base64 = base64.b64encode(audio_data).decode()
+        
+        # Cridar API VeuPlus
+        api_url = "http://localhost:8003/api/sip/process-voice"
+        
+        payload = {
+            "call_id": call_id,
+            "audio_base64": audio_base64,
+            "language": language,
+            "voice_system": voice_system
+        }
+        
+        response = requests.post(api_url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            if result.get("success"):
+                # Guardar àudio de resposta
+                response_audio_base64 = result.get("response_audio_base64", "")
+                if response_audio_base64:
+                    response_audio_data = base64.b64decode(response_audio_base64)
+                    
+                    response_audio_path = f"/tmp/veuplus_response_{call_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+                    
+                    with open(response_audio_path, "wb") as f:
+                        f.write(response_audio_data)
+                    
+                    # Retornar path a Asterisk
+                    print(f"SET VARIABLE RESPONSE_FILE {response_audio_path}")
+                    log_message(f"Response generated: {response_audio_path}")
+                    
+                    # Guardar informació de la conversa
+                    user_input = result.get("user_input", "")
+                    agent_response = result.get("agent_response", "")
+                    
+                    print(f"SET VARIABLE USER_INPUT {user_input}")
+                    print(f"SET VARIABLE AGENT_RESPONSE {agent_response}")
+                    
+                    log_message(f"User: {user_input}")
+                    log_message(f"Agent: {agent_response}")
+                    
+                else:
+                    log_message("ERROR: No response audio data received")
+                    print("SET VARIABLE PROCESS_ERROR 1")
+            else:
+                log_message(f"ERROR: {result.get('error', 'Unknown error')}")
+                print("SET VARIABLE PROCESS_ERROR 1")
+        else:
+            log_message(f"ERROR: API call failed with status {response.status_code}")
+            print("SET VARIABLE PROCESS_ERROR 1")
+            
+    except Exception as e:
+        log_message(f"ERROR: {str(e)}")
+        print("SET VARIABLE PROCESS_ERROR 1")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+

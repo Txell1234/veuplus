@@ -38,7 +38,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *pyc*
-#*.env
+*.env
+.env
 .ac
 agenthub/agents/youtube/db
 *credentials.json*
@@ -71,3 +72,15 @@ android-sdk/
 
 # Ocultar/ignorar carpeta de archivo del frontend
 archive/
+
+# Archivos temporales de audio
+backend/temp_audio/*.wav
+backend/temp_audio/*.mp3
+
+# Archivos de base de datos locales
+*.db
+backend/veuplus.db
+
+# Archivos de audio de demostración (grandes)
+demo_*.wav
+enhanced_demo_*.wav

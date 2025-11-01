@@ -1,0 +1,116 @@
+import React, { useEffect, useRef, useState } from 'react'
+import api from '../config/api'
+
+export default function TrainingMonitor() {
+  const [jobs, setJobs] = useState([])
+  const [selected, setSelected] = useState('')
+  const [progress, setProgress] = useState({})
+  const wsRef = useRef(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    try {
+      setLoading(true)
+      const r = await api.get('/api/training/jobs')
+      setJobs(r.data.jobs || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const openWS = (jobId) => {
+    if (wsRef.current) wsRef.current.close()
+    const base = api?.defaults?.baseURL || window.location.origin
+    const wsScheme = base.startsWith('https') ? 'wss' : 'ws'
+    const wsBase = base.replace(/^https?/, wsScheme)
+    const wsUrl = `${wsBase}/api/training/ws/${jobId}`
+    const ws = new WebSocket(wsUrl)
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data)
+        setProgress((prev) => ({ ...prev, [jobId]: data }))
+      } catch {}
+    }
+    ws.onerror = console.error
+    wsRef.current = ws
+  }
+
+  const selectJob = (jobId) => {
+    setSelected(jobId)
+    openWS(jobId)
+  }
+
+  const etaMinutes = (pct) => {
+    if (!pct || pct <= 0) return '~'
+    const remain = Math.max(0, 100 - pct)
+    return `${Math.max(1, Math.round(remain * 0.5))} min`
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Entrenament - Monitor</h1>
+        <p className="text-gray-600">Segueix el progres en temps real via WebSocket.</p>
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading && (
+          <div className="p-3 text-sm text-gray-600">Carregant treballs...</div>
+        )}
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left">Model</th>
+              <th className="px-4 py-2 text-left">Idioma</th>
+              <th className="px-4 py-2 text-left">Estat</th>
+              <th className="px-4 py-2 text-left">Progres</th>
+              <th className="px-4 py-2 text-left">Epoch</th>
+              <th className="px-4 py-2 text-left">Loss</th>
+              <th className="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((j) => {
+              const p = progress[j.job_id] || {}
+              const pct = p.progress ?? j.progress ?? 0
+              const epoch = p.epoch ?? j.epoch ?? 0
+              const loss = p.loss ?? j.loss ?? 0
+              return (
+                <tr key={j.job_id} className="border-b">
+                  <td className="px-4 py-2">{j.name}</td>
+                  <td className="px-4 py-2">{j.language?.toUpperCase()}</td>
+                  <td className="px-4 py-2">
+                    <div className="text-xs text-gray-700">{p.status || j.status}</div>
+                    <div className="w-40 bg-gray-200 rounded-full h-2 mt-1">
+                      <div className="bg-primary-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </td>
+                  <td className="px-4 py-2">{pct}% · ETA {etaMinutes(pct)}</td>
+                  <td className="px-4 py-2">{epoch}</td>
+                  <td className="px-4 py-2">{typeof loss === 'number' ? loss.toFixed(4) : loss}</td>
+                  <td className="px-4 py-2">
+                    <button className="btn-secondary" onClick={() => selectJob(j.job_id)}>Seguir</button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {selected && (
+        <div className="card p-4">
+          <div className="font-semibold text-gray-900 mb-2">Job: {selected}</div>
+          <pre className="text-xs text-gray-700 bg-gray-50 p-3 rounded overflow-auto">
+            {JSON.stringify(progress[selected] || {}, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+

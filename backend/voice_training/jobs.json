@@ -1,0 +1,91 @@
+{
+  "train_a67f92eb": {
+    "job_id": "train_a67f92eb",
+    "name": "Prueba de Entrenamiento",
+    "language": "ca",
+    "status": "completed",
+    "progress": 100,
+    "epochs": 5,
+    "current_epoch": 5,
+    "created_at": "2025-09-23T22:04:10.682465",
+    "audio_files": [
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmpc739khk5_sample_0.wav",
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmpn5mf932l_sample_1.wav",
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmpiz4u6u2e_sample_2.wav"
+    ],
+    "transcripts": [
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 1.",
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 2.",
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 3."
+    ],
+    "loss": 5069.232177734375,
+    "model_path": "backend\\trained_models\\train_a67f92eb.pth"
+  },
+  "train_dd179544": {
+    "job_id": "train_dd179544",
+    "name": "Prueba de Entrenamiento",
+    "language": "ca",
+    "status": "completed",
+    "progress": 100,
+    "epochs": 5,
+    "current_epoch": 5,
+    "created_at": "2025-09-23T22:08:22.660890",
+    "audio_files": [
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmp9lz3ir7n_sample_0.wav",
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmpgckz1z4__sample_1.wav",
+      "C:\\Users\\merit\\AppData\\Local\\Temp\\tmpe0tcg2ji_sample_2.wav"
+    ],
+    "transcripts": [
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 1.",
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 2.",
+      "Aquesta \u00e9s la mostra d'entrenament n\u00famero 3."
+    ],
+    "success": true,
+    "loss": 5070.2705078125,
+    "model_path": "backend\\trained_models\\train_dd179544.pth"
+  },
+  "train_5fa83680": {
+    "job_id": "train_5fa83680",
+    "name": "Prueba de Entrenamiento",
+    "language": "ca",
+    "status": "failed",
+    "progress": 10,
+    "epochs": 5,
+    "current_epoch": 0,
+    "created_at": "2025-09-23T22:09:52.974855",
+    "audio_files": [
+      "sample1.wav",
+      "sample2.wav",
+      "sample3.wav"
+    ],
+    "transcripts": [
+      "Aquesta \u00e9s la primera mostra d'entrenament.",
+      "Aquesta \u00e9s la segona mostra d'entrenament.",
+      "Aquesta \u00e9s la tercera mostra d'entrenament."
+    ],
+    "success": true,
+    "error": "No hay datos v\u00e1lidos"
+  },
+  "train_7f145ad8": {
+    "job_id": "train_7f145ad8",
+    "name": "Prueba de Entrenamiento",
+    "language": "ca",
+    "status": "failed",
+    "progress": 10,
+    "epochs": 5,
+    "current_epoch": 0,
+    "created_at": "2025-09-23T22:10:38.051283",
+    "audio_files": [
+      "sample1.wav",
+      "sample2.wav",
+      "sample3.wav"
+    ],
+    "transcripts": [
+      "Aquesta \u00e9s la primera mostra d'entrenament.",
+      "Aquesta \u00e9s la segona mostra d'entrenament.",
+      "Aquesta \u00e9s la tercera mostra d'entrenament."
+    ],
+    "success": true,
+    "error": "No hay datos v\u00e1lidos"
+  }
+}

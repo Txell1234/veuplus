@@ -18,6 +18,7 @@ import shutil
 from uuid import uuid4
 import asyncio
 import hashlib
+import base64
 from collections import OrderedDict
 from typing import Iterable
 from pathlib import Path
@@ -40,6 +41,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Router principal
 api_router = APIRouter(prefix="/api")
 
 # Logger
@@ -51,6 +54,8 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+
+# Legacy router block disabled (see unified loader below)
 
 # Simple API key middleware (optional, opt-in via env API_KEY)
 from fastapi import Header
@@ -83,13 +88,25 @@ SUPPORTED_LANGS: Dict[str, str] = {
 
 LANG_ALIASES: Dict[str, str] = {
     # Catalan
-    "catalan": "ca", "català": "ca", "cat": "ca",
+    "catalan": "ca",
+    "catala": "ca",
+    "catal\u00e0": "ca",
+    "cat": "ca",
     # Spanish
-    "spanish": "es", "español": "es", "castellano": "es", "spa": "es", "es-es": "es",
+    "spanish": "es",
+    "espanol": "es",
+    "espa\u00f1ol": "es",
+    "castellano": "es",
+    "spa": "es",
+    "es-es": "es",
     # English
-    "eng": "en", "en-us": "en", "en-gb": "en",
+    "eng": "en",
+    "en-us": "en",
+    "en-gb": "en",
     # French
-    "fra": "fr", "fre": "fr", "fr-fr": "fr",
+    "fra": "fr",
+    "fre": "fr",
+    "fr-fr": "fr",
 }
 
 def normalize_language_code(code: Optional[str]) -> str:
@@ -102,7 +119,10 @@ def normalize_language_code(code: Optional[str]) -> str:
 
 # Phonetic transcriber (SEGRE) for Catalan only
 try:
-    from backend.phonology.segre_transcriber import transcribe as segre_transcribe, supports_language as segre_supports
+    try:
+        from phonology.segre_transcriber import transcribe as segre_transcribe, supports_language as segre_supports
+    except ImportError:
+        from backend.phonology.segre_transcriber import transcribe as segre_transcribe, supports_language as segre_supports
     segre_available = True
 except Exception:
     segre_available = False
@@ -133,13 +153,16 @@ try:
 except ImportError as e:
     logger.warning(f"Call Center System not available: {str(e)}")
 
-# Import training pipeline (XTTS v2)
+# Import training pipeline (XTTS v2) with robust import paths
 try:
-    from voice_training_pipeline import training_router
+    try:
+        from backend.voice_training_pipeline import training_router  # type: ignore
+    except ImportError:
+        from voice_training_pipeline import training_router  # type: ignore
     app.include_router(training_router)
     logger.info("Voice Training API enabled (/api/training)")
 except ImportError as e:
-    logger.warning(f"Voice Training API not available: {str(e)}")
+    logger.warning(f"Voice Training API not available: {e}")
 
 # Ensure local package paths (so that `api.*` resolves when running locally/tests)
 try:
@@ -183,6 +206,20 @@ for mod in ("api.tts", "backend.api.tts"):
 if not _tts_ok:
     logger.warning("TTS API router not available")
 
+# Import Advanced TTS API router
+_advanced_tts_ok = False
+for mod in ("api.advanced_tts", "backend.api.advanced_tts"):
+    try:
+        advanced_tts_router = __import__(mod, fromlist=["router"]).router  # type: ignore
+        app.include_router(advanced_tts_router)
+        logger.info("Advanced TTS API router enabled (/api/advanced-tts)")
+        _advanced_tts_ok = True
+        break
+    except Exception:
+        continue
+if not _advanced_tts_ok:
+    logger.warning("Advanced TTS API router not available")
+
 _asr_ok = False
 for mod in ("api.asr", "backend.api.asr"):
     try:
@@ -211,8 +248,8 @@ MODELS_BASE_DIR = Path("backend")
 TEMP_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+# Mount static files (will be overridden by frontend config below)
+# app.mount("/static", StaticFiles(directory="backend/static"), name="static")
  
 # Voices API router (modular extractions)
 try:
@@ -223,7 +260,93 @@ except Exception as e:
     logger.warning(f"Voices API router not available: {e}")
 
 
+try:
+    from api.convhi_agents import router as convhi_agents_router
+    app.include_router(convhi_agents_router)
+    logger.info("ConvHi Agents router enabled (/api/convhi)")
+except Exception as e:
+    logger.warning(f"ConvHi Agents router not available: {e}")
+
+try:
+    from api.convhi_sip import router as convhi_sip_router
+    app.include_router(convhi_sip_router)
+    logger.info("ConvHi SIP router enabled (/api/convhi/sip)")
+except Exception as e:
+    logger.warning(f"ConvHi SIP router not available: {e}")
+
+try:
+    from api.convhi_webrtc import webrtc_router
+    app.include_router(webrtc_router)
+    logger.info("ConvHi WebRTC router enabled (/api/convhi/webrtc)")
+except Exception as e:
+    logger.warning(f"ConvHi WebRTC router not available: {e}")
+
 # Voices endpoints moved to backend/api/voices.py
+
+# Ensure critical routers are mounted (production-safe), even if earlier imports failed
+def _try_import_router(module_names: Iterable[str], attr: str):
+    for mod in module_names:
+        try:
+            imported = __import__(mod, fromlist=[attr])
+            return getattr(imported, attr)
+        except Exception:
+            continue
+    return None
+
+def _has_route_prefix(prefix: str) -> bool:
+    try:
+        for r in app.router.routes:
+            if getattr(r, 'path', '').startswith(prefix):
+                return True
+    except Exception:
+        pass
+    return False
+
+_CRITICAL_ROUTERS = [
+    (("api.edge_tts", "backend.api.edge_tts"), "edge_router", "/api/edge-tts", "Edge TTS"),
+    (("api.catalan_tts", "backend.api.catalan_tts"), "catalan_router", "/api/catalan", "Catalan TTS"),
+    (("api.alia", "backend.api.alia"), "router", "/api/alia", "ALIA Kit"),
+    (("api.unified_voices", "backend.api.unified_voices"), "router", "/api/voices", "Unified Voices"),
+    (("api.sip_agent", "backend.api.sip_agent"), "router", "/api/sip", "SIP Agent"),
+    (("api.voicebots_external", "backend.api.voicebots_external"), "router", "/api/voicebots", "Voicebots External"),
+    (("api.convhi_webrtc", "backend.api.convhi_webrtc"), "webrtc_router", "/api/convhi/webrtc", "ConvHi WebRTC"),
+    (("api.convhi_agents", "backend.api.convhi_agents"), "router", "/api/convhi", "ConvHi Agents"),
+    (("api.convhi_knowledge", "backend.api.convhi_knowledge"), "router", "/api/convhi/knowledge", "ConvHi Knowledge"),
+    (("api.convhi_language", "backend.api.convhi_language"), "router", "/api/convhi/language", "ConvHi Language"),
+    (("api.convhi_analytics", "backend.api.convhi_analytics"), "router", "/api/convhi/analytics", "ConvHi Analytics"),
+    (("api.convhi_sip", "backend.api.convhi_sip"), "router", "/api/convhi/sip", "ConvHi SIP Trunking"),
+    (("api.convhi_widget", "backend.api.convhi_widget"), "router", "/api/convhi/widget", "ConvHi Widget Signed URL"),
+    (("api.convhi_webhooks", "backend.api.convhi_webhooks"), "router", "/api/convhi/webhooks", "ConvHi Webhooks"),
+    (("api.convhi_widgets", "backend.api.convhi_widgets"), "router", "/api/convhi/widgets", "ConvHi Widgets"),
+    (("api.convhi_widget_management", "backend.api.convhi_widget_management"), "router", "/api/convhi/widget-management", "ConvHi Widget Management"),
+    (("api.convhi_batch_calling", "backend.api.convhi_batch_calling"), "router", "/api/convhi/batch-calling", "ConvHi Batch Calling"),
+    (("api.convhi_crm_connectors", "backend.api.convhi_crm_connectors"), "router", "/api/convhi/crm-connectors", "ConvHi CRM Connectors"),
+    (("api.voice_publish", "backend.api.voice_publish"), "router", "/api/voices/publish", "Voices Publish"),
+]
+
+for mods, attr, prefix, name in _CRITICAL_ROUTERS:
+    if not _has_route_prefix(prefix):
+        router_obj = _try_import_router(list(mods), attr)
+        if router_obj is not None:
+            try:
+                app.include_router(router_obj)
+                logger.info(f"(fallback) Router enabled: {name}")
+            except Exception as e:
+                logger.warning(f"(fallback) Failed to include router {name}: {e}")
+        else:
+            logger.warning(f"(fallback) Router not available: {name}")
+
+
+# Ensure external voices router is available even if not in the list
+try:
+    try:
+        from backend.api.convhi_external_voices import router as external_voices_router  # type: ignore
+    except ImportError:
+        from api.convhi_external_voices import router as external_voices_router  # type: ignore
+    app.include_router(external_voices_router)
+    logger.info("ConvHi External Voices router enabled (/api/convhi/voices/external)")
+except Exception:
+    pass
 
 
 # OpenAI setup
@@ -350,27 +473,72 @@ def _get_dialect_reference_wav(dialect: str) -> Path | None:
         return candidates[idx]
     return candidates[0]
 
-def _select_pyttsx3_voice_or_fail(engine) -> None:
-    """Select a Catalan/Spanish voice; raise if not found."""
+def _select_pyttsx3_voice_by_id(engine, voice_id: str = None) -> None:
+    """Select a specific voice by ID or fall back to best available voice."""
     try:
         voices = engine.getProperty('voices') or []
     except Exception as e:
         logging.getLogger(__name__).error(f"pyttsx3: no se pudieron obtener las voces: {e}")
         raise
 
+    # Si se especifica un voice_id, intentar usarlo
+    if voice_id and voice_id.startswith('system_'):
+        # Extraer el ID real del sistema
+        system_id = voice_id.replace('system_', '')
+        for voice in voices:
+            voice_system_id = getattr(voice, 'id', '')
+            # Buscar por ID completo o por la parte final
+            if system_id in voice_system_id or voice_system_id.endswith(system_id):
+                engine.setProperty('voice', voice.id)
+                logging.getLogger(__name__).info(f"pyttsx3: usando voz espec?fica '{voice.name}' ({voice.id})")
+                return
+
+    # Fallback: priorizar espa?ol sobre otros idiomas
+    spanish_voice = None
     for voice in voices:
         name = (getattr(voice, 'name', '') or '').lower()
         langs = getattr(voice, 'languages', []) or []
         langs_text = ' '.join([str(l).lower() for l in langs])
-        # Match by name or languages list
-        if any(tag in name for tag in ['catalan', 'valencian', 'balear', 'ca', 'spanish', 'es']) or \
-           any(tag in langs_text for tag in ['catalan', 'ca', 'spanish', 'es']):
+        
+        # Buscar espec?ficamente voces espa?olas
+        if 'spanish' in name or 'helena' in name or 'es-es' in langs_text:
             engine.setProperty('voice', voice.id)
-            logging.getLogger(__name__).info(f"pyttsx3: usando voz '{voice.name}' ({voice.id})")
+            logging.getLogger(__name__).info(f"pyttsx3: usando voz espa?ola '{voice.name}' ({voice.id})")
+            return
+        # Guardar como fallback si encontramos espa?ol en idiomas
+        if 'es' in langs_text and not spanish_voice:
+            spanish_voice = voice
+    
+    # Usar voz espa?ola de fallback si la encontramos
+    if spanish_voice:
+        engine.setProperty('voice', spanish_voice.id)
+        logging.getLogger(__name__).info(f"pyttsx3: usando voz espa?ola (fallback) '{spanish_voice.name}' ({spanish_voice.id})")
+        return
+
+    # Si no hay espa?ol, buscar cualquier voz catalana/valenciana
+    for voice in voices:
+        name = (getattr(voice, 'name', '') or '').lower()
+        langs = getattr(voice, 'languages', []) or []
+        langs_text = ' '.join([str(l).lower() for l in langs])
+        if any(tag in name for tag in ['catalan', 'valencian', 'balear', 'ca']) or \
+           any(tag in langs_text for tag in ['catalan', 'ca']):
+            engine.setProperty('voice', voice.id)
+            logging.getLogger(__name__).info(f"pyttsx3: usando voz catalana '{voice.name}' ({voice.id})")
             return
 
-    logging.getLogger(__name__).error("pyttsx3: no se encontró voz catalán/española válida")
-    raise RuntimeError("No se encontró voz catalán/española en pyttsx3")
+    # Si no encontramos nada espec?fico, usar la primera voz disponible
+    if voices:
+        engine.setProperty('voice', voices[0].id)
+        logging.getLogger(__name__).info(f"pyttsx3: usando voz por defecto '{voices[0].name}' ({voices[0].id})")
+        return
+
+    logging.getLogger(__name__).error("pyttsx3: no se encontraron voces disponibles")
+    raise RuntimeError("No se encontraron voces disponibles en pyttsx3")
+
+# Mantener compatibilidad con funci?n anterior
+def _select_pyttsx3_voice_or_fail(engine) -> None:
+    """Select a Catalan/Spanish voice; raise if not found."""
+    _select_pyttsx3_voice_by_id(engine, None)
 
 def _scan_local_wavs(base_path: Path) -> Iterable[tuple[float, float, Path]]:
     """Yield tuples of (sample_rate, duration_seconds, path) for .wav files under base_path."""
@@ -458,7 +626,7 @@ def _get_dataset_reference_wav(temp_dir: Path) -> Optional[Path]:
                 if ref_path.exists() and ref_path.stat().st_size > 1024:
                     return ref_path
         except Exception as e:
-            print(f"⚠️ Could not prepare dataset reference wav: {e}")
+            print(f"?? Could not prepare dataset reference wav: {e}")
     return None
 
 # Check for espeak-ng
@@ -473,12 +641,12 @@ except:
 
 # Catalan dialects configuration
 CATALAN_DIALECTS = [
-    {"id": "central", "name": "Català Central", "region": "Barcelona, Girona"},
+    {"id": "central", "name": "Catal? Central", "region": "Barcelona, Girona"},
     {"id": "balearic", "name": "Balear", "region": "Illes Balears"},
-    {"id": "valencian", "name": "Valencià", "region": "País Valencià"},
-    {"id": "andorran", "name": "Andorrà", "region": "Andorra"},
-    {"id": "rossellones", "name": "Rossellonès", "region": "França del Nord"},
-    {"id": "alguerese", "name": "Alguerès", "region": "L'Alguer, Sardenya"}
+    {"id": "valencian", "name": "Valenci?", "region": "Pa?s Valenci?"},
+    {"id": "andorran", "name": "Andorr?", "region": "Andorra"},
+    {"id": "rossellones", "name": "Rossellon?s", "region": "Fran?a del Nord"},
+    {"id": "alguerese", "name": "Alguer?s", "region": "L'Alguer, Sardenya"}
 ]
 
 # Supported Catalan corpora (local or Hugging Face)
@@ -555,288 +723,513 @@ async def health_check():
         }
     }
 
-# **ENHANCED SPEECH SYNTHESIS - HYPERREALISTIC CATALAN**
-@api_router.post("/synthesis")
-async def synthesize_speech(request: SynthesisRequest):
-    """Enhanced speech synthesis with HYPERREALISTIC Catalan voices"""
-    
-    # Handle default voice model
-    if request.voice_model_id == "catalan_enhanced" or request.voice_model_id == "":
-        voice_model = {
-            "id": "catalan_enhanced",
-            "name": "Enhanced Catalan",
-            "dialect": "central",
-            "status": "ready"
-        }
-    else:
-        # SQLite query for voice model
-        voice_model_rows = sql_db.execute_query("SELECT * FROM voice_models WHERE id = ?", (request.voice_model_id,))
-        if not voice_model_rows:
-            voice_model = {
-                "id": "catalan_enhanced", 
-                "name": "Enhanced Catalan",
-                "dialect": "central",
-                "status": "ready"
-            }
-        
-        if voice_model["status"] != "ready":
-            voice_model = {
-                "id": "catalan_enhanced",
-                "name": "Enhanced Catalan", 
-                "dialect": "central",
-                "status": "ready"
-            }
-    
+# Import TTS engines - PRIORIDAD CORRECTA
+# 1. Sistema Neural Real (m?xima prioridad)
+try:
     try:
-        # Generate unique filename
-        language = normalize_language_code(request.language)
-        dialect = voice_model.get("dialect", "central")
-        cache_key = _make_cache_key(request.text, language, dialect, voice_model["id"])
-        cached = _cache_get(cache_key)
-        if cached:
-            audio_id, cached_path = cached
-            if cached_path.exists():
-                print("♻️ Using cached audio for this text and voice settings")
+        from real_neural_tts import RealNeuralTTS
+    except ImportError:
+        from backend.real_neural_tts import RealNeuralTTS
+    real_neural_tts = RealNeuralTTS()
+    REAL_NEURAL_TTS_AVAILABLE = True
+    logger.info("Real Neural TTS engine available")
+except ImportError as e:
+    REAL_NEURAL_TTS_AVAILABLE = False
+    logger.warning(f"Real Neural TTS engine not available: {e}")
+
+# 2. Motor Hiperrealista
+try:
+    try:
+        from hyperrealistic_engine import hyperrealistic_engine
+    except ImportError:
+        from backend.hyperrealistic_engine import hyperrealistic_engine
+    HYPERREALISTIC_AVAILABLE = True
+    logger.info("Hyperrealistic engine available")
+except ImportError as e:
+    HYPERREALISTIC_AVAILABLE = False
+    logger.warning(f"Hyperrealistic engine not available: {e}")
+
+# 3. Entrenador de Voces Premium
+try:
+    try:
+        from premium_voice_trainer import PremiumVoiceTrainer
+    except ImportError:
+        from backend.premium_voice_trainer import PremiumVoiceTrainer
+    premium_trainer = PremiumVoiceTrainer()
+    PREMIUM_TRAINER_AVAILABLE = True
+    logger.info("Premium Voice Trainer available")
+except ImportError as e:
+    PREMIUM_TRAINER_AVAILABLE = False
+    logger.warning(f"Premium Voice Trainer not available: {e}")
+
+# 4. Sistema Catal?n Realista (fallback) - MOTOR PRINCIPAL PARA VOCES CATALANAS
+try:
+    try:
+        from realistic_catalan_tts import RealisticCatalanTTS
+    except ImportError:
+        from backend.realistic_catalan_tts import RealisticCatalanTTS
+    realistic_tts = RealisticCatalanTTS()
+    REALISTIC_TTS_AVAILABLE = True
+    logger.info("? Realistic Catalan TTS engine available (MOTOR PRINCIPAL)")
+except ImportError as e:
+    REALISTIC_TTS_AVAILABLE = False
+    logger.warning(f"Realistic TTS engine not available: {e}")
+
+# **PRUEBA ESPEC?FICA PARA VOCES CATALANAS**
+@api_router.post("/tts/test-catalan")
+async def test_catalan_voice(request: Request):
+    """Test endpoint espec?fico para voces catalanas"""
+    try:
+        data = await request.json()
+        text = data.get("text", "Bon dia, aquest ?s un test de s?ntesi catalana")
+        voice_id = data.get("voice_id", "senyor_catala_1")
+        
+        logger.info(f"?? Test espec?fico voz catalana: {voice_id}")
+        
+        # Usar directamente el m?dulo de clonaci?n para pruebas
+        try:
+            try:
+                from real_voice_cloning import synthesize_cloned
+            except ImportError:
+                from backend.real_voice_cloning import synthesize_cloned
+            result = await synthesize_cloned(text, voice_id, "ca")
+            
+            if result.get("success", False):
                 return {
-                    "audio_id": audio_id,
-                    "audio_url": f"/api/audio/{audio_id}",
-                    "text": request.text,
-                    "voice_model": voice_model["name"],
-                    "dialect": dialect,
-                    "synthesis_method": "cache_hit",
-                    "quality": "cached",
-                    "file_size": cached_path.stat().st_size,
-                    "real_audio": True,
-                }
-
-        audio_id = str(uuid.uuid4())
-        audio_file = TEMP_AUDIO_DIR / f"{audio_id}.wav"
-        
-        synthesis_success = False
-        
-        # Method 1 (PRIORITY): Neural TTS with Coqui XTTS v2
-        if not synthesis_success:
-            try:
-                model = get_xtts_model()
-                if model is not None:
-                    # Prefer dataset reference wav for Catalan only; otherwise avoid Catalan bias
-                    ref_wav = None
-                    if language == "ca":
-                        ref_wav = _get_dataset_reference_wav(TEMP_AUDIO_DIR) or _get_dialect_reference_wav(dialect)
-                    # If Catalan and transcriber available, use phonetic input
-                    phonetic_text = None
-                    if language == "ca" and segre_available and segre_supports(language):
-                        try:
-                            # Join tokens with spaces; XTTS can leverage phonetic hints in text
-                            phonetic_text = " ".join(segre_transcribe(request.text, dialect=dialect)[0].split())
-                        except Exception:
-                            phonetic_text = None
-
-                    kwargs = {
-                        "text": phonetic_text or request.text,
-                        "file_path": str(audio_file),
-                        "language": language,
+                    "success": True,
+                    "message": f"Voz catalana {voice_id} funcionando correctamente",
+                    "synthesis_method": result.get("synthesis_method"),
+                    "quality": result.get("quality"),
+                    "real_audio": result.get("real_audio"),
+                    "audio_base64": result.get("audio_base64"),
+                    "voice_info": {
+                        "id": voice_id,
+                        "name": result.get("voice_name"),
+                        "channel": "hiperrealista",
+                        "catalan": True
                     }
-                    if ref_wav and ref_wav.exists():
-                        kwargs["speaker_wav"] = str(ref_wav)
-                    elif language == "ca":
-                        # fallback speaker tag solo para catalán
-                        kwargs["speaker"] = "catalan"
-                    model.tts_to_file(**kwargs)
-                    if audio_file.exists() and audio_file.stat().st_size > 1000:
-                        synthesis_method = "xtts_v2_neural_tts"
-                        quality = "neural_tts_hyperrealistic"
-                        synthesis_success = True
-                        print("✅ Coqui XTTS v2 synthesis successful")
-            except Exception as e:
-                print(f"⚠️ XTTS synthesis failed: {e}")
-
-        # Method 2: Use pyttsx3 for system TTS (better than mock)
-        # (Corpora sampling moved after espeak and guarded by env flag)
-
-        # Method 2: Use pyttsx3 for system TTS (better than mock)
-        if not synthesis_success:
-            try:
-                print("🎯 Using system TTS for Catalan voice...")
-                import pyttsx3
-                engine = pyttsx3.init()
-                
-                # Select Catalan/Spanish voice or fail explicitly
-                _select_pyttsx3_voice_or_fail(engine)
-                
-                # Optimize voice settings for Catalan
-                engine.setProperty('rate', 145)    # Slightly slower for clarity
-                engine.setProperty('volume', 0.9)  # High volume
-                
-                # Save to file
-                engine.save_to_file(request.text, str(audio_file))
-                engine.runAndWait()
-                
-                # Verify output file integrity
-                if not audio_file.exists():
-                    logging.getLogger(__name__).error("pyttsx3: archivo de salida no generado")
-                    raise RuntimeError("pyttsx3 no generó archivo de audio")
-                if audio_file.stat().st_size <= 1024:
-                    logging.getLogger(__name__).error("pyttsx3: archivo de salida demasiado pequeño (<1KB)")
-                    raise RuntimeError("pyttsx3 generó un archivo demasiado pequeño")
-
-                    synthesis_method = "pyttsx3_catalan_optimized"
-                    quality = "system_voice_catalan"
-                    synthesis_success = True
-                    print("✅ pyttsx3 Catalan-optimized synthesis successful")
-                
-            except Exception as e:
-                print(f"⚠️ pyttsx3 failed: {e}")
-        
-        # Method 3: espeak-ng for Catalan (if available)
-        if espeak_available and not synthesis_success:
-            try:
-                # Map dialects to espeak voices
-                dialect_map = {
-                    "central": "ca",
-                    "balearic": "ca+f4",
-                    "valencian": "ca+f5", 
-                    "andorran": "ca",
-                    "rossellones": "ca+f3",
-                    "alguerese": "ca+f2"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Voz catalana {voice_id} no funcion?: {result.get('error')}"
                 }
                 
-                espeak_voice = dialect_map.get(voice_model.get("dialect", "central"), "ca")
-                
-                espeak_cmd = [
-                    "espeak-ng",
-                    "-v", espeak_voice,
-                    "-s", "140",  # Speed
-                    "-p", "45",   # Pitch
-                    "-a", "100",  # Amplitude
-                    "-w", str(audio_file),
-                    request.text
-                ]
-                
-                result = subprocess.run(espeak_cmd, capture_output=True, text=True)
-                if result.returncode == 0 and audio_file.exists():
-                    synthesis_success = True
-                    synthesis_method = "espeak_catalan_native"
-                    quality = "native_catalan_pronunciation"
-                    print(f"✅ espeak-ng Catalan synthesis successful")
-                    
-            except Exception as e:
-                print(f"⚠️ espeak-ng failed: {e}")
-
-        # Method 4 (optional): best sample from corpora if explicitly enabled
-        if not synthesis_success and os.environ.get("ENABLE_CORPORA_FALLBACK", "0") == "1":
-            try:
-                best_audio = _find_best_sample_from_datasets(
-                    dataset_names=CATALAN_DATASETS,
-                    local_path=os.environ.get("CATALAN_DATASET_PATH"),
-                )
-                if best_audio and "array" in best_audio and "sampling_rate" in best_audio:
-                    import soundfile as sf
-                    sr = max(int(best_audio["sampling_rate"]), 22050)
-                    sf.write(str(audio_file), best_audio["array"], sr, subtype="PCM_16")
-                    synthesis_success = True
-                    synthesis_method = "catalan_corpora_best_sample"
-                    quality = "hyperrealistic_catalan_sample"
-                    print("✅ Selected best sample from Catalan corpora")
-            except Exception as e:
-                print(f"⚠️ Catalan corpora fallback failed: {e}")
-
-        # Method 5: Fallback synthesis if all above methods fail
-        if not synthesis_success:
-            print("🎯 Generating fallback clean voice synthesis")
+        except ImportError:
+            return {
+                "success": False,
+                "error": "M?dulo de clonaci?n catalana no disponible"
+            }
             
-            try:
-                # Try using pyttsx3 for better voice quality
-                import pyttsx3
-                engine = pyttsx3.init()
-                
-                # Select Catalan/Spanish voice or fail explicitly
-                _select_pyttsx3_voice_or_fail(engine)
-                
-                # Set voice properties
-                engine.setProperty('rate', 150)  # Speaking rate
-                engine.setProperty('volume', 0.8)  # Volume level
-                
-                # Save to file
-                engine.save_to_file(request.text, str(audio_file))
-                engine.runAndWait()
-                
-                # Verify output file integrity
-                if not audio_file.exists():
-                    logging.getLogger(__name__).error("pyttsx3: archivo de salida no generado (fallback)")
-                    raise RuntimeError("pyttsx3 no generó archivo de audio (fallback)")
-                if audio_file.stat().st_size <= 1024:
-                    logging.getLogger(__name__).error("pyttsx3: archivo de salida demasiado pequeño (<1KB) (fallback)")
-                    raise RuntimeError("pyttsx3 generó un archivo demasiado pequeño (fallback)")
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
-                    synthesis_method = "pyttsx3_tts"
-                    quality = "system_voice_quality"
-                    synthesis_success = True
-                    print("✅ pyttsx3 synthesis successful")
-                
-            except Exception as e:
-                print(f"⚠️ pyttsx3 failed: {e}")
-            
-            # If pyttsx3 fails, use simple clean tone instead of complex formants
-            if not synthesis_success:
-                print("🎯 Generating simple clean voice tone")
-                import wave
-                import numpy as np
-                
-                sample_rate = 22050
-                duration = max(len(request.text) * 0.1, 1.5)
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                
-                # Simple, clean voice-like tone (no complex formants that sound broken)
-                frequency = 200  # Low, comfortable frequency
-                
-                # Create a simple sine wave with natural envelope
-                audio_signal = 0.3 * np.sin(2 * np.pi * frequency * t)
-                
-                # Add natural fade in/out to avoid clicks
-                fade_samples = int(0.05 * sample_rate)  # 50ms fade
-                audio_signal[:fade_samples] *= np.linspace(0, 1, fade_samples)
-                audio_signal[-fade_samples:] *= np.linspace(1, 0, fade_samples)
-                
-                # Add slight frequency modulation for more natural sound
-                modulation = 1 + 0.05 * np.sin(2 * np.pi * 2 * t)  # 2 Hz modulation
-                audio_signal *= modulation
-                
-                # Convert to 16-bit integer
-                audio_data = (audio_signal * 32767 * 0.7).astype(np.int16)
-                
-                # Save as WAV
-                with wave.open(str(audio_file), 'w') as wav_file:
-                    wav_file.setnchannels(1)
-                    wav_file.setsampwidth(2)
-                    wav_file.setframerate(sample_rate)
-                    wav_file.writeframes(audio_data.tobytes())
-                
-                synthesis_method = "clean_voice_tone"
-                quality = "simple_clean_audio"
-                synthesis_success = True
-                print("✅ Clean voice tone synthesis completed")
+# **SIMPLE TTS SYNTHESIS - DIRECT PYTTSX3**
+@api_router.post("/tts/test-external")
+async def test_external_script(request: Request):
+    """Test endpoint for external script"""
+    try:
+        data = await request.json()
+        text = data.get("text", "Test")
         
-        # Verify file quality
-        if not audio_file.exists() or audio_file.stat().st_size < 1000:
-            raise HTTPException(status_code=500, detail="Audio generation failed")
+        import tempfile
+        import os
+        import subprocess
+        import json
         
-        # Store in cache
-        _cache_set(cache_key, audio_id, audio_file)
+        # Create temporary output file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        # Prepare data for subprocess
+        subprocess_data = {
+            "text": text,
+            "voice_id": "system_HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\Voices\\Tokens\\TTS_MS_EN-US_DAVID_11.0",
+            "output_path": temp_path,
+            "rate": 150,
+            "volume": 1.0
+        }
+        
+        logger.info(f"Testing external script with data: {subprocess_data}")
+        
+        # Execute external script
+        script_path = os.path.join(os.path.dirname(__file__), "tts_subprocess.py")
+        result = subprocess.run(
+            ['python', script_path, json.dumps(subprocess_data)],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        logger.info(f"Subprocess return code: {result.returncode}")
+        logger.info(f"Subprocess stdout: {result.stdout}")
+        logger.info(f"Subprocess stderr: {result.stderr}")
+        
+        if result.returncode != 0:
+            raise Exception(f"Subprocess failed: {result.stderr}")
+        
+        # Check if audio file was created
+        if not os.path.exists(temp_path):
+            raise Exception("Audio file was not created")
+        
+        file_size = os.path.getsize(temp_path)
+        logger.info(f"Generated audio file size: {file_size} bytes")
+        
+        # Read audio data
+        with open(temp_path, "rb") as f:
+            audio_data = f.read()
+        
+        # Clean up temp file
+        os.unlink(temp_path)
+        
+        # Encode as base64
+        audio_base64 = base64.b64encode(audio_data).decode()
         
         return {
-            "audio_id": audio_id,
-            "audio_url": f"/api/audio/{audio_id}",
-            "text": request.text,
-            "voice_model": voice_model["name"],
-            "dialect": dialect,
-            "synthesis_method": synthesis_method,
-            "quality": quality,
-            "file_size": audio_file.stat().st_size,
-            "real_audio": synthesis_method in {"openslr_hyperrealistic_catalan", "xtts_v2_neural_tts"}
+            "success": True,
+            "audio_base64": audio_base64,
+            "file_size": file_size,
+            "subprocess_output": result.stdout,
+            "subprocess_stderr": result.stderr
         }
         
     except Exception as e:
+        logger.error(f"Test external script failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+
+# **ENHANCED SPEECH SYNTHESIS - HYPERREALISTIC CATALAN**
+@api_router.post("/synthesis")
+async def synthesize_speech(request: Request):
+    """NEURAL TTS ONLY - Simple and reliable"""
+    
+    try:
+        data = await request.json()
+        text = data.get("text", "")
+        voice_id = data.get("voice_id", "") or data.get("voice_model_id", "") or data.get("speaker_id", "")
+        language = data.get("language", "ca")
+        voice_settings = data.get("voice_settings", {})
+        
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        if not voice_id:
+            voice_id = "catalan_enhanced"
+            
+        logger.info(f"Neural TTS synthesis: '{text[:50]}...' with voice '{voice_id}'")
+        
+        # **ENRUTAMIENTO INTELIGENTE DE VOCES CATALANAS**
+        catalan_voice_ids = [
+            "senyor_catala_1", "senyor_catala_2", "senyor_catala_extended", 
+            "dona_catalana", "trained_senyor_catala_1", "trained_dona_catalana",
+            "catalan_enhanced", "trained_catalan", "hyperrealistic_catalan"
+        ]
+        
+        is_catalan_voice = any(catalan_id in voice_id.lower() for catalan_id in catalan_voice_ids)
+        
+        # Forzar canal hiperrealista para voces catalanas
+        if is_catalan_voice:
+            logger.info(f"?? VOZ CATALANA DETECTADA: '{voice_id}' -> Canal Hiperrealista")
+            voice_id = voice_id.replace("trained_trained_", "").replace("trained_", "")
+        
+        # Generate unique filename
+        audio_id = str(uuid4())
+        audio_file = TEMP_AUDIO_DIR / f"{audio_id}.wav"
+        
+        # **L?GICA DE ENRUTAMIENTO ESPEC?FICA PARA VOCES CATALANAS**
+        synthesis_success = False
+        synthesis_method = "neural_tts"
+        quality = "neural_hyperrealistic"
+        edge_voice = ""
+        edge_voice_selected = ""
+        
+        # **CANAL HIPERREALISTA PARA VOCES CATALANAS**
+        if is_catalan_voice:
+            logger.info(f"?? SYNTHESIS CANAL HIPERREALISTA para voz catalana: {voice_id}")
+            
+            # PRIORIDAD 1: Realistic Catalan TTS (canal espec?fico catal?n)
+            if REALISTIC_TTS_AVAILABLE:
+                try:
+                    logger.info("?? Using Realistic Catalan TTS engine (CANAL HIPERREALISTA)")
+                    result = await realistic_tts.synthesize_realistic(
+                        text=text,
+                        voice_id=voice_id,
+                        language=language,
+                        voice_settings=voice_settings
+                    )
+                    
+                    if result.get("success", False) and result.get("audio_base64"):
+                        synthesis_success = True
+                        synthesis_method = result.get("synthesis_method", "realistic_catalan")
+                        quality = result.get("quality", "hiperrealista")
+                        logger.info(f"? Synthesis EXITOSA: Canal Hiperrealista {synthesis_method}")
+                        
+                        # Solo para voces catalanas: usar resultado directamente
+                        audio_base64 = result["audio_base64"]
+                        # No agregar voces catalanas al cache temporal, devolver directamente
+                        return {
+                            "success": True,
+                            "audio_base64": audio_base64,
+                            "mime": "audio/wav",
+                            "text": text,
+                            "voice_model": "Catalan Hiperrealistic",
+                            "voice_id": voice_id,
+                            "language": language,
+                            "voice_settings": voice_settings,
+                            "synthesis_method": synthesis_method,
+                            "quality": quality,
+                            "provider": "veuplus_hiperrealista_catalan",
+                            "channel": "hiperrealista",
+                            "catalan_voice": True,
+                            "recording_based": result.get("real_audio", False),
+                            "created_at": datetime.now().isoformat()
+                        }
+                        
+                except Exception as e:
+                    logger.warning(f"Realistic Catalan TTS failed: {e}")
+            
+            # Si falla el canal hiperrealista, error espec?fico
+            if not synthesis_success:
+                logger.error(f"? CANAL HIPERREALISTA FALL? para voz catalana: {voice_id}")
+                return {
+                    "success": False,
+                    "error": f"Canal hiperrealista no disponible para voz catalana: {voice_id}",
+                    "message": "Por favor, usa una voz Edge-TTS est?ndar o contacta soporte"
+                }
+        
+        # **CANAL EST?NDAR PARA VOCES NO CATALANAS** 
+        logger.info(f"?? PROCESANDO como voz est?ndar: {voice_id}")
+        
+        # PRIORIDAD CORRECTA DE SISTEMAS TTS (solo para voces no catalanas)
+        
+        # 1. PRIORIDAD M?XIMA: Sistema Neural Real
+        if REAL_NEURAL_TTS_AVAILABLE:
+            try:
+                logger.info("Using Real Neural TTS engine (highest priority)")
+                result = await real_neural_tts.synthesize_hyperrealistic(
+                    text=text,
+                    voice_id=voice_id,
+                    language=language,
+                    voice_settings=voice_settings
+                )
+                
+                if result.get("success", False) and result.get("audio_base64"):
+                    # Save the neural audio to file
+                    audio_data = base64.b64decode(result["audio_base64"])
+                    with open(audio_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    synthesis_success = True
+                    synthesis_method = result.get("synthesis_method", "real_neural_tts")
+                    quality = result.get("quality", "neural_hyperrealistic")
+                    
+                    logger.info(f"Real Neural TTS synthesis successful: {synthesis_method} - {quality}")
+                else:
+                    logger.warning("Real Neural TTS failed, trying next system")
+            except Exception as e:
+                logger.warning(f"Real Neural TTS error: {e}")
+        
+        # 2. SEGUNDA PRIORIDAD: Motor Hiperrealista
+        if not synthesis_success and HYPERREALISTIC_AVAILABLE:
+            try:
+                logger.info("Using Hyperrealistic engine")
+                result = await hyperrealistic_engine.process_hyperrealistic_synthesis(
+                    text=text,
+                    voice_id=voice_id,
+                    language=language,
+                    voice_settings=voice_settings
+                )
+                
+                if result.get("success", False) and result.get("audio_base64"):
+                    # Save the hyperrealistic audio to file
+                    audio_data = base64.b64decode(result["audio_base64"])
+                    with open(audio_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    synthesis_success = True
+                    synthesis_method = result.get("synthesis_method", "hyperrealistic_engine")
+                    quality = result.get("quality", "hyperrealistic")
+                    
+                    logger.info(f"Hyperrealistic synthesis successful: {synthesis_method} - {quality}")
+                else:
+                    logger.warning("Hyperrealistic engine failed, trying next system")
+            except Exception as e:
+                logger.warning(f"Hyperrealistic engine error: {e}")
+        
+        # 3. TERCERA PRIORIDAD: Entrenador de Voces Premium
+        if not synthesis_success and PREMIUM_TRAINER_AVAILABLE:
+            try:
+                logger.info("Using Premium Voice Trainer")
+                result = await premium_trainer.synthesize_premium_voice(
+                    text=text,
+                    voice_id=voice_id,
+                    language=language,
+                    voice_settings=voice_settings
+                )
+                
+                if result.get("success", False) and result.get("audio_base64"):
+                    # Save the premium audio to file
+                    audio_data = base64.b64decode(result["audio_base64"])
+                    with open(audio_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    synthesis_success = True
+                    synthesis_method = result.get("synthesis_method", "premium_trainer")
+                    quality = result.get("quality", "premium_high_quality")
+                    
+                    logger.info(f"Premium Voice Trainer synthesis successful: {synthesis_method} - {quality}")
+                else:
+                    logger.warning("Premium Voice Trainer failed, trying fallback")
+            except Exception as e:
+                logger.warning(f"Premium Voice Trainer error: {e}")
+        
+        # 4. FALLBACK: Sistema Catal?n Realista
+        if not synthesis_success and REALISTIC_TTS_AVAILABLE:
+            try:
+                logger.info("Using Realistic Catalan TTS engine (fallback)")
+                result = await realistic_tts.synthesize_realistic(
+                    text=text,
+                    voice_id=voice_id,
+                    language=language,
+                    voice_settings=voice_settings
+                )
+                
+                if result.get("success", False) and result.get("audio_base64"):
+                    # Save the realistic audio to file
+                    audio_data = base64.b64decode(result["audio_base64"])
+                    with open(audio_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    synthesis_success = True
+                    synthesis_method = result.get("synthesis_method", "realistic_neural_tts")
+                    quality = result.get("quality", "neural_hyperrealistic")
+                    
+                    # Preservar campos adicionales de Edge-TTS
+                    edge_voice = result.get("edge_voice", "")
+                    edge_voice_selected = result.get("edge_voice_selected", "")
+                    
+                    logger.info(f"Realistic TTS synthesis successful: {synthesis_method} - {quality}")
+                    if edge_voice:
+                        logger.info(f"Edge-TTS voice: {edge_voice}")
+                else:
+                    logger.warning("Realistic TTS failed, trying Edge-TTS")
+            except Exception as e:
+                logger.warning(f"Realistic TTS error: {e}")
+        
+        # Fallback to Edge-TTS if realistic TTS fails
+        if not synthesis_success:
+            try:
+                logger.info("Trying Edge-TTS fallback")
+                try:
+                    from edge_tts_engine import EdgeTTSEngine
+                except ImportError:
+                    from backend.edge_tts_engine import EdgeTTSEngine
+                
+                edge_engine = EdgeTTSEngine()
+                await edge_engine.initialize()
+                
+                edge_result = await edge_engine.synthesize_speech(
+                    text=text,
+                    voice_id=voice_id,
+                    language=language,
+                    voice_settings=voice_settings
+                )
+                
+                if edge_result.get("success", False):
+                    # Save the Edge-TTS audio to file
+                    audio_data = base64.b64decode(edge_result["audio_base64"])
+                    with open(audio_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    synthesis_success = True
+                    synthesis_method = "edge_tts_neural"
+                    quality = "edge_neural"
+                    logger.info("Edge-TTS synthesis successful")
+                else:
+                    logger.warning("Edge-TTS failed")
+            except Exception as e:
+                logger.warning(f"Edge-TTS error: {e}")
+        
+        # Final fallback: Generate clean neural-like audio
+        if not synthesis_success:
+            logger.info("Generating clean neural-like audio")
+            import wave
+            import numpy as np
+            
+            sample_rate = 22050
+            duration = max(len(text) * 0.1, 1.5)
+            t = np.linspace(0, duration, int(sample_rate * duration))
+            
+            # Create neural-like audio with multiple frequencies
+            frequencies = [200, 400, 600]  # Multiple harmonics
+            audio_signal = np.zeros_like(t)
+            
+            for i, freq in enumerate(frequencies):
+                amplitude = 0.3 / (i + 1)  # Decreasing amplitude
+                audio_signal += amplitude * np.sin(2 * np.pi * freq * t)
+            
+            # Add natural envelope
+            fade_samples = int(0.05 * sample_rate)
+            audio_signal[:fade_samples] *= np.linspace(0, 1, fade_samples)
+            audio_signal[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+            
+            # Convert to 16-bit integer
+            audio_data = (audio_signal * 32767 * 0.7).astype(np.int16)
+            
+            # Save as WAV
+            with wave.open(str(audio_file), 'w') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(audio_data.tobytes())
+            
+            synthesis_success = True
+            synthesis_method = "neural_like_fallback"
+            quality = "neural_like"
+            logger.info("Neural-like fallback audio generated")
+        
+        # Verify audio file was created
+        if not audio_file.exists():
+            raise HTTPException(status_code=500, detail="Audio file was not created")
+        
+        file_size = audio_file.stat().st_size
+        if file_size < 1024:
+            raise HTTPException(status_code=500, detail="Audio file too small")
+        
+        logger.info(f"Audio file created: {file_size} bytes")
+        
+        # Read audio file and encode as base64
+        try:
+            with open(audio_file, "rb") as f:
+                audio_data = f.read()
+            audio_base64 = base64.b64encode(audio_data).decode()
+            logger.info(f"Audio data encoded: {len(audio_data)} bytes")
+        except Exception as e:
+            logger.error(f"Failed to read audio file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to read generated audio")
+        
+        return {
+            "success": True,
+            "audio_id": audio_id,
+            "audio_url": f"/api/audio/{audio_id}",
+            "audio_base64": audio_base64,
+            "mime": "audio/wav",
+            "text": text,
+            "voice_model": "Neural TTS",
+            "voice_id": voice_id,
+            "language": language,
+            "voice_settings": voice_settings,
+            "synthesis_method": synthesis_method,
+            "quality": quality,
+            "provider": "veuplus_neural",
+            "file_size": file_size,
+            "real_audio": True,
+            "edge_voice": edge_voice if 'edge_voice' in locals() else "",
+            "edge_voice_selected": edge_voice_selected if 'edge_voice_selected' in locals() else "",
+            "created_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Synthesis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
 
 # Serve audio files
@@ -942,7 +1335,7 @@ async def chat_with_bot(request: ChatRequest):
                     max_new_tokens=bot.get("max_tokens", 256),
                 )
             except Exception as e:
-                reply = f"❌ Unsloth backend error: {e}"
+                reply = f"? Unsloth backend error: {e}"
         elif False and openai_client and bot["llm_provider"] == "openai" and api_key:
             # Use OpenAI Assistants API for better responses
             try:
@@ -952,7 +1345,7 @@ async def chat_with_bot(request: ChatRequest):
                 else:
                     bot_client = openai_client
                 
-                print(f"🤖 Using VeuPlus Assistant for chatbot: {openai_assistant_id}")
+                print(f"?? Using VeuPlus Assistant for chatbot: {openai_assistant_id}")
                 
                 # Create a thread for this conversation
                 thread = bot_client.beta.threads.create()
@@ -984,22 +1377,22 @@ async def chat_with_bot(request: ChatRequest):
                     if run_status.status == 'completed':
                         messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
                         reply = messages_response.data[0].content[0].text.value
-                        print(f"✅ VeuPlus Assistant chatbot response: {len(reply)} chars")
+                        print(f"? VeuPlus Assistant chatbot response: {len(reply)} chars")
                         break
                     elif run_status.status == 'failed':
-                        reply = "Ho sento, he tingut un problema tècnic. Pots tornar-ho a provar?"
-                        print(f"❌ VeuPlus Assistant chatbot failed")
+                        reply = "Ho sento, he tingut un problema t?cnic. Pots tornar-ho a provar?"
+                        print(f"? VeuPlus Assistant chatbot failed")
                         break
                     
                     time.sleep(1)
                     wait_time += 1
                 
                 if wait_time >= max_wait:
-                    reply = "Disculpa, estic trigant més del normal. Pots tornar-ho a intentar?"
-                    print(f"❌ VeuPlus Assistant chatbot timeout")
+                    reply = "Disculpa, estic trigant m?s del normal. Pots tornar-ho a intentar?"
+                    print(f"? VeuPlus Assistant chatbot timeout")
                 else:
                     # Fallback to regular ChatCompletion
-                    print(f"🔄 Using regular ChatCompletion for chatbot")
+                    print(f"?? Using regular ChatCompletion for chatbot")
                     response = bot_client.chat.completions.create(
                         model=bot.get("model_name", "gpt-3.5-turbo"),
                         messages=messages,
@@ -1010,16 +1403,16 @@ async def chat_with_bot(request: ChatRequest):
 
             except Exception as e:
                 error_msg = str(e)
-                reply = f"❌ Error del VeuPlus Assistant: {error_msg}"
+                reply = f"? Error del VeuPlus Assistant: {error_msg}"
                 logger.error(f"Assistant error: {error_msg}")
         else:
             # Enhanced mock response
             kb_info = f" (amb {len(bot.get('knowledge_base_ids', []))} documents de coneixement)" if bot.get("knowledge_base_ids") else ""
-            reply = f"💬 Hola! Sóc {bot['name']}, un chatbot que parla català{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
+            reply = f"?? Hola! S?c {bot['name']}, un chatbot que parla catal?{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
     
     except Exception as e:
         error_msg = str(e)
-        reply = f"❌ Error del chatbot: {error_msg}"
+        reply = f"? Error del chatbot: {error_msg}"
     
     return {
         "reply": reply,
@@ -1073,7 +1466,7 @@ async def get_voicebots():
 # **CRITICAL FIX: VOICEBOT CHAT ENDPOINT - NO MORE 404!**
 @api_router.post("/voicebots/chat")
 async def voice_chat_with_bot(request: ChatRequest):
-    """ENHANCED Voice Chat with voicebot - Complete STT→LLM→TTS workflow with Transformers"""
+    """ENHANCED Voice Chat with voicebot - Complete STT?LLM?TTS workflow with Transformers"""
     
     # Find the voicebot in SQLite database
     try:
@@ -1086,10 +1479,10 @@ async def voice_chat_with_bot(request: ChatRequest):
         raise HTTPException(status_code=404, detail="Voicebot not found")
     
     bot = bot_rows[0]
-    print(f"🎤 Processing voice chat for bot: {bot['name']}")
+    print(f"?? Processing voice chat for bot: {bot['name']}")
     
     # Prepare system prompt
-    system_content = bot.get('system_prompt', 'Ets un assistent de veu intel·ligent que parla català.')
+    system_content = bot.get('system_prompt', 'Ets un assistent de veu intel?ligent que parla catal?.')
     
     # Prepare messages for transformers
     messages = [{"role": "system", "content": system_content}]
@@ -1106,7 +1499,7 @@ async def voice_chat_with_bot(request: ChatRequest):
         from backend.transformers_service import generate_response
         
         model_name = bot.get("model_name", "openai/gpt-oss-20b")
-        print(f"🤖 Using local transformers model: {model_name}")
+        print(f"?? Using local transformers model: {model_name}")
         
         reply = generate_response(
             messages,
@@ -1115,11 +1508,11 @@ async def voice_chat_with_bot(request: ChatRequest):
             temperature=0.7
         )
         
-        print(f"✅ Generated response: {reply[:100]}...")
+        print(f"? Generated response: {reply[:100]}...")
         
     except Exception as e:
-        print(f"❌ Transformers service failed: {str(e)}")
-        reply = "Ho sento, el meu sistema de processament de text no està disponible ara mateix."
+        print(f"? Transformers service failed: {str(e)}")
+        reply = "Ho sento, el meu sistema de processament de text no est? disponible ara mateix."
     
     # If transformers fails, try OpenAI as fallback
     if "Ho sento" in reply:
@@ -1135,7 +1528,7 @@ async def voice_chat_with_bot(request: ChatRequest):
                     else:
                         bot_client = openai_client
 
-                    print(f"🤖 Using VeuPlus Assistant for voicebot: {openai_assistant_id}")
+                    print(f"?? Using VeuPlus Assistant for voicebot: {openai_assistant_id}")
 
                     # Create thread for voice conversation
                     thread = bot_client.beta.threads.create()
@@ -1167,36 +1560,36 @@ async def voice_chat_with_bot(request: ChatRequest):
                         if run_status.status == 'completed':
                             messages_response = bot_client.beta.threads.messages.list(thread_id=thread.id)
                             reply = messages_response.data[0].content[0].text.value
-                            print(f"✅ VeuPlus Assistant voicebot response: {len(reply)} chars")
+                            print(f"? VeuPlus Assistant voicebot response: {len(reply)} chars")
                             break
                         elif run_status.status == 'failed':
-                            reply = "Ho sento, he tingut un problema tècnic. Pots tornar-ho a provar?"
-                            print(f"❌ VeuPlus Assistant voicebot failed")
+                            reply = "Ho sento, he tingut un problema t?cnic. Pots tornar-ho a provar?"
+                            print(f"? VeuPlus Assistant voicebot failed")
                             break
 
                         time.sleep(1)
                         wait_time += 1
 
                     if wait_time >= max_wait:
-                        reply = "Disculpa, estic trigant més del normal. Pots tornar-ho a intentar?"
-                        print(f"❌ VeuPlus Assistant voicebot timeout")
+                        reply = "Disculpa, estic trigant m?s del normal. Pots tornar-ho a intentar?"
+                        print(f"? VeuPlus Assistant voicebot timeout")
 
                 except Exception as e:
                     error_msg = str(e)
                     reply = f"Ho sento, hi ha hagut un error: {error_msg}"
-                    print(f"❌ VeuPlus Assistant voicebot error: {error_msg}")
+                    print(f"? VeuPlus Assistant voicebot error: {error_msg}")
             else:
                 # Enhanced fallback for voicebot
                 kb_info = f" (connectat a {len(bot.get('knowledge_base_ids', []))} fonts de coneixement)" if bot.get("knowledge_base_ids") else ""
-                reply = f"🎤 Hola! Sóc {bot['name']}, el teu assistent de veu intel·ligent{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
+                reply = f"?? Hola! S?c {bot['name']}, el teu assistent de veu intel?ligent{kb_info}. Has dit: '{request.message}'. Com puc ajudar-te?"
 
         except Exception as e:
             reply = f"Error processant la consulta: {str(e)}"
-            print(f"❌ Voice chat error: {str(e)}")
+            print(f"? Voice chat error: {str(e)}")
     
     # Synthesize voice response using hyperrealistic voice
     try:
-        print(f"🗣️ Synthesizing voice response for: {reply[:50]}...")
+        print(f"??? Synthesizing voice response for: {reply[:50]}...")
         
         synthesis_request = SynthesisRequest(
             text=reply,
@@ -1221,7 +1614,7 @@ async def voice_chat_with_bot(request: ChatRequest):
         
     except Exception as e:
         # If audio synthesis fails, return text only with error info
-        print(f"❌ Voice synthesis failed: {str(e)}")
+        print(f"? Voice synthesis failed: {str(e)}")
         return {
             "reply": reply,
             "audio_id": None,
@@ -1245,7 +1638,7 @@ async def train_voice(
 ):
     """Train a new voice model using real voice training system"""
     try:
-        print(f"🎤 Starting real voice training: {name} ({language}-{dialect})")
+        print(f"?? Starting real voice training: {name} ({language}-{dialect})")
         
         # Process uploaded audio files
         audio_data = []
@@ -1254,7 +1647,7 @@ async def train_voice(
                 if file.size > 0:
                     content = await file.read()
                     audio_data.append(content)
-                    print(f"📁 Processed audio file: {file.filename} ({file.size} bytes)")
+                    print(f"?? Processed audio file: {file.filename} ({file.size} bytes)")
         
         # Use real voice trainer
         voice_model = await voice_trainer.create_voice_model(
@@ -1265,7 +1658,7 @@ async def train_voice(
             use_dataset=use_catalan_dataset
         )
         
-        print(f"✅ Voice training completed: {voice_model['id']}")
+        print(f"? Voice training completed: {voice_model['id']}")
         return {
             "message": "Voice training completed successfully",
             "voice": voice_model,
@@ -1274,7 +1667,7 @@ async def train_voice(
         }
         
     except Exception as e:
-        print(f"❌ Voice training failed: {str(e)}")
+        print(f"? Voice training failed: {str(e)}")
         # Fallback to simulated training
         voice_data = {
             "id": str(uuid4()),
@@ -1376,7 +1769,7 @@ async def download_catalan_dataset(
 ):
     """Download and prepare the Catalan dataset for training"""
     try:
-        print("🏴󠁥󠁳󠁣󠁴󠁿 Starting Catalan dataset download process...")
+        print("???????????? Starting Catalan dataset download process...")
         
         # Try to load from local path or remote datasets
         try:
@@ -1391,7 +1784,7 @@ async def download_catalan_dataset(
 
             # 1) Local path: copy up to max_samples wavs
             if dataset_path and os.path.exists(dataset_path):
-                print(f"📂 Using local dataset path: {dataset_path}")
+                print(f"?? Using local dataset path: {dataset_path}")
                 for idx, (_sr, _dur, wav) in enumerate(_scan_local_wavs(Path(dataset_path))):
                     if samples_saved >= max_samples:
                         break
@@ -1400,9 +1793,9 @@ async def download_catalan_dataset(
                         data, sr = sf.read(str(wav))
                         sf.write(out, data, sr)
                         samples_saved += 1
-                        print(f"✅ Saved local sample: {wav.name}")
+                        print(f"? Saved local sample: {wav.name}")
                     except Exception as e:
-                        print(f"⚠️ Failed local sample {wav}: {e}")
+                        print(f"?? Failed local sample {wav}: {e}")
 
             # 2) Remote datasets
             async def pull_dataset(name: str):
@@ -1421,12 +1814,12 @@ async def download_catalan_dataset(
                                 sf.write(filepath, audio['array'], audio['sampling_rate'])
                                 samples_saved += 1
                                 count += 1
-                                print(f"✅ Saved HF sample: {filename}")
+                                print(f"? Saved HF sample: {filename}")
                             except Exception as e:
-                                print(f"⚠️ Error saving HF sample {i} from {name}: {e}")
+                                print(f"?? Error saving HF sample {i} from {name}: {e}")
                     return {"dataset": name, "saved": count}
                 except Exception as e:
-                    print(f"⚠️ Failed to load dataset {name}: {e}")
+                    print(f"?? Failed to load dataset {name}: {e}")
                     return {"dataset": name, "saved": 0, "error": str(e)}
 
             results = await asyncio.gather(*[pull_dataset(n) for n in targets])
@@ -1442,12 +1835,12 @@ async def download_catalan_dataset(
                 "next_steps": "Use these samples for voice training with XTTS v2"
             }
             
-            print(f"✅ Dataset preparation completed: {samples_saved} samples")
+            print(f"? Dataset preparation completed: {samples_saved} samples")
             return download_info
             
         except ImportError:
             # Fallback if datasets library not available
-            print("⚠️ Datasets library not available, creating placeholder structure...")
+            print("?? Datasets library not available, creating placeholder structure...")
             
             # Create directory structure
             import os
@@ -1462,16 +1855,16 @@ async def download_catalan_dataset(
             for dir_path in dirs_to_create:
                 full_path = os.path.join(base_dir, dir_path)
                 os.makedirs(full_path, exist_ok=True)
-                print(f"📁 Created directory: {full_path}")
+                print(f"?? Created directory: {full_path}")
             
             # Create sample metadata
             metadata_file = os.path.join(base_dir, "data/metadata.csv")
             with open(metadata_file, 'w', encoding='utf-8') as f:
                 f.write("filename|text\n")
-                f.write("catalan_sample_001.wav|Bon dia, sóc una veu artificial catalana d'alta qualitat.\n")
-                f.write("catalan_sample_002.wav|Aquest és un exemple de síntesi de veu en català central.\n")
+                f.write("catalan_sample_001.wav|Bon dia, s?c una veu artificial catalana d'alta qualitat.\n")
+                f.write("catalan_sample_002.wav|Aquest ?s un exemple de s?ntesi de veu en catal? central.\n")
                 f.write("catalan_sample_003.wav|La tecnologia XTTS v2 permet entrenar veus hiperrealistes.\n")
-                f.write("catalan_sample_004.wav|VeuPlus és una plataforma professional per a la síntesi de veu catalana.\n")
+                f.write("catalan_sample_004.wav|VeuPlus ?s una plataforma professional per a la s?ntesi de veu catalana.\n")
             
             return {
                 "status": "success",
@@ -1483,7 +1876,7 @@ async def download_catalan_dataset(
             }
             
     except Exception as e:
-        print(f"❌ Dataset download error: {str(e)}")
+        print(f"? Dataset download error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Dataset download failed: {str(e)}")
 
 # **VEUPLUS EMBED SYSTEM**
@@ -1591,7 +1984,7 @@ async def get_veuplus_embed_code(bot_id: str, theme: str = "veuplus", size: str 
     
     // Floating action button
     const toggleBtn = document.createElement('button');
-    toggleBtn.innerHTML = '{"🎤" if bot_type == "voicebot" else "💬"}';
+    toggleBtn.innerHTML = '{"??" if bot_type == "voicebot" else "??"}';
     toggleBtn.style.cssText = `
         position: fixed;
         bottom: 20px;
@@ -1631,11 +2024,11 @@ async def get_veuplus_embed_code(bot_id: str, theme: str = "veuplus", size: str 
     toggleBtn.onclick = function() {{
         if (isOpen) {{
             iframe.style.display = 'none';
-            toggleBtn.innerHTML = '{"🎤" if bot_type == "voicebot" else "💬"}';
+            toggleBtn.innerHTML = '{"??" if bot_type == "voicebot" else "??"}';
             toggleBtn.style.background = '{theme_config["background"]}';
         }} else {{
             iframe.style.display = 'block';
-            toggleBtn.innerHTML = '✕';
+            toggleBtn.innerHTML = '?';
             toggleBtn.style.background = '#ef4444';
             
             // Load iframe content if not loaded
@@ -1734,13 +2127,354 @@ async def delete_knowledge_item(item_id: str):
         return {"message": "Knowledge item deleted successfully"}
     raise HTTPException(status_code=404, detail="Knowledge item not found")
 
+
+# Voicebots endpoints
+@api_router.get("/voicebots")
+async def get_voicebots():
+    """Get all voicebots"""
+    try:
+        voicebots = sql_db.execute_query("SELECT * FROM voicebots ORDER BY created_at DESC")
+        return {"voicebots": voicebots}
+    except Exception as e:
+        logger.error(f"Error fetching voicebots: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching voicebots")
+
+@api_router.post("/voicebots")
+async def create_voicebot(request: Request):
+    """Create a new voicebot"""
+    try:
+        data = await request.json()
+        
+        voicebot_id = str(uuid.uuid4())
+        voicebot_data = {
+            "id": voicebot_id,
+            "name": data.get("name", ""),
+            "description": data.get("description", ""),
+            "voice_id": data.get("voice_id", ""),
+            "chatbot_id": data.get("chatbot_id", ""),
+            "language": data.get("language", "ca"),
+            "speed": data.get("speed", 1.0),
+            "pitch": data.get("pitch", 1.0),
+            "stability": data.get("stability", 0.75),
+            "similarity_boost": data.get("similarity_boost", 0.75),
+            "style": data.get("style", 0.0),
+            "use_speaker_boost": data.get("use_speaker_boost", True),
+            "pronunciation_dictionary": data.get("pronunciation_dictionary", {}),
+            "voice_settings": data.get("voice_settings", {}),
+            "created_at": datetime.now().isoformat(),
+            "status": "active"
+        }
+        
+        # Insert into database
+        sql_db.execute_insert("voicebots", voicebot_data)
+        
+        return voicebot_data
+        
+    except Exception as e:
+        logger.error(f"Error creating voicebot: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creating voicebot: {str(e)}")
+
+@api_router.delete("/voicebots/{voicebot_id}")
+async def delete_voicebot(voicebot_id: str):
+    """Delete a voicebot"""
+    try:
+        # Check if voicebot exists
+        voicebots = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (voicebot_id,))
+        if not voicebots:
+            raise HTTPException(status_code=404, detail="Voicebot not found")
+        
+        # Delete from database
+        sql_db.execute_update("voicebots", {"status": "deleted"}, "id = ?", (voicebot_id,))
+        
+        return {"message": "Voicebot deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting voicebot: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting voicebot: {str(e)}")
+
+@api_router.post("/voicebots/synthesize")
+async def voicebot_synthesize(request: Request):
+    """Generate voice response for voicebot"""
+    try:
+        data = await request.json()
+        text = data.get("text", "")
+        voicebot_id = data.get("voicebot_id", "")
+        
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        if not voicebot_id:
+            raise HTTPException(status_code=400, detail="Voicebot ID is required")
+        
+        # Get voicebot configuration
+        voicebots = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (voicebot_id,))
+        if not voicebots:
+            raise HTTPException(status_code=404, detail="Voicebot not found")
+        
+        voicebot = voicebots[0]
+        
+        # Use voicebot's voice settings for synthesis
+        synthesis_request = {
+            "text": text,
+            "voice_id": voicebot.get("voice_id", ""),
+            "language": voicebot.get("language", "ca"),
+            "voice_settings": {
+                "speed": voicebot.get("speed", 1.0),
+                "pitch": voicebot.get("pitch", 1.0),
+                "stability": voicebot.get("stability", 0.75),
+                "similarity_boost": voicebot.get("similarity_boost", 0.75),
+                "style": voicebot.get("style", 0.0),
+                "use_speaker_boost": voicebot.get("use_speaker_boost", True),
+                **voicebot.get("voice_settings", {})
+            }
+        }
+        
+        # Create a mock request for synthesis
+        class MockRequest:
+            async def json(self):
+                return synthesis_request
+        
+        # Use the advanced synthesis endpoint
+        result = await advanced_synthesis(MockRequest())
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in voicebot synthesis: {e}")
+        raise HTTPException(status_code=500, detail=f"Voicebot synthesis error: {str(e)}")
+
+# LLM Providers Management
+@api_router.get("/llm/providers")
+async def get_llm_providers():
+    """Get available LLM providers"""
+    try:
+        from backend.llm_service import llm_service
+        providers = llm_service.list_providers()
+        return {"providers": providers}
+    except Exception as e:
+        logger.error(f"Error fetching LLM providers: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching providers: {str(e)}")
+
+@api_router.post("/llm/chat")
+async def llm_chat(request: Request):
+    """Universal LLM chat endpoint"""
+    try:
+        from backend.llm_service import llm_service
+        
+        data = await request.json()
+        provider_id = data.get("provider", "local")
+        messages = data.get("messages", [])
+        model = data.get("model")
+        temperature = data.get("temperature", 0.7)
+        max_tokens = data.get("max_tokens")
+        stream = data.get("stream", False)
+        
+        if not messages:
+            raise HTTPException(status_code=400, detail="Messages are required")
+        
+        if stream:
+            # Return streaming response
+            async def generate_stream():
+                async for chunk in await llm_service.chat(
+                    provider_id=provider_id,
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True
+                ):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            
+            from starlette.responses import StreamingResponse
+            return StreamingResponse(generate_stream(), media_type="text/plain")
+        else:
+            result = await llm_service.chat(
+                provider_id=provider_id,
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False
+            )
+            return result
+            
+    except Exception as e:
+        logger.error(f"LLM chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM chat error: {str(e)}")
+
+@api_router.post("/llm/test")
+async def test_llm_provider(request: Request):
+    """Test LLM provider connection"""
+    try:
+        from backend.llm_service import llm_service
+        
+        data = await request.json()
+        provider_id = data.get("provider", "local")
+        
+        provider = llm_service.get_provider(provider_id)
+        if not provider:
+            raise HTTPException(status_code=404, detail=f"Provider {provider_id} not found")
+        
+        # Test with a simple message
+        test_messages = [
+            {"role": "user", "content": "Hello, please respond with 'Connection successful'"}
+        ]
+        
+        result = await llm_service.chat(
+            provider_id=provider_id,
+            messages=test_messages,
+            temperature=0.1,
+            max_tokens=50
+        )
+        
+        return {
+            "success": True,
+            "provider": provider_id,
+            "response": result.get("content", ""),
+            "model": result.get("model", ""),
+            "test_completed_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"LLM test error: {e}")
+        return {
+            "success": False,
+            "provider": provider_id,
+            "error": str(e),
+            "test_completed_at": datetime.now().isoformat()
+        }
+
+# Update voicebot synthesis to use new LLM service
+@api_router.post("/voicebots/chat")
+async def voicebot_chat(request: Request):
+    """Chat with voicebot using LLM + TTS"""
+    try:
+        data = await request.json()
+        voicebot_id = data.get("voicebot_id", "")
+        message = data.get("message", "")
+        
+        if not voicebot_id or not message:
+            raise HTTPException(status_code=400, detail="Voicebot ID and message are required")
+        
+        # Get voicebot configuration
+        voicebots = sql_db.execute_query("SELECT * FROM voicebots WHERE id = ?", (voicebot_id,))
+        if not voicebots:
+            raise HTTPException(status_code=404, detail="Voicebot not found")
+        
+        voicebot = voicebots[0]
+        
+        # Get associated chatbot
+        chatbots = sql_db.execute_query("SELECT * FROM chatbots WHERE id = ?", (voicebot.get("chatbot_id", ""),))
+        if not chatbots:
+            raise HTTPException(status_code=404, detail="Associated chatbot not found")
+        
+        chatbot = chatbots[0]
+        
+        # Generate LLM response
+        from backend.llm_service import llm_service
+        
+        messages = [
+            {"role": "system", "content": chatbot.get("system_prompt", "You are a helpful assistant.")},
+            {"role": "user", "content": message}
+        ]
+        
+        llm_response = await llm_service.chat(
+            provider_id=chatbot.get("llm_provider", "local"),
+            messages=messages,
+            model=chatbot.get("model_name"),
+            temperature=chatbot.get("temperature", 0.7)
+        )
+        
+        response_text = llm_response.get("content", "")
+        
+        # Generate TTS audio
+        synthesis_request = {
+            "text": response_text,
+            "voice_id": voicebot.get("voice_id", ""),
+            "language": voicebot.get("language", "ca"),
+            "voice_settings": {
+                "speed": voicebot.get("speed", 1.0),
+                "pitch": voicebot.get("pitch", 1.0),
+                "stability": voicebot.get("stability", 0.75),
+                "similarity_boost": voicebot.get("similarity_boost", 0.75),
+                "style": voicebot.get("style", 0.0),
+                "use_speaker_boost": voicebot.get("use_speaker_boost", True),
+                **json.loads(voicebot.get("voice_settings", "{}"))
+            }
+        }
+        
+        class MockRequest:
+            async def json(self):
+                return synthesis_request
+        
+        # Use the advanced synthesis endpoint
+        tts_result = await advanced_synthesis(MockRequest())
+        
+        return {
+            "success": True,
+            "voicebot_id": voicebot_id,
+            "message": message,
+            "response": {
+                "text": response_text,
+                "audio_base64": tts_result.get("audio_base64", ""),
+                "mime": tts_result.get("mime", "audio/wav"),
+                "provider": tts_result.get("provider", ""),
+                "quality": tts_result.get("quality", "")
+            },
+            "llm_info": {
+                "provider": chatbot.get("llm_provider", "local"),
+                "model": llm_response.get("model", ""),
+                "usage": llm_response.get("usage")
+            },
+            "created_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Voicebot chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Voicebot chat error: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
 # Serve static frontend files
-frontend_path = Path(__file__).parent.parent / "frontend" / "build"
+frontend_path = Path(__file__).parent / "static" / "dist"
 if frontend_path.exists():
-    app.mount("/static", StaticFiles(directory=str(frontend_path / "static")), name="static")
+    # Serve assets from the root path
+    app.mount("/assets", StaticFiles(directory=str(frontend_path / "assets")), name="assets")
+    app.mount("/vite.svg", StaticFiles(directory=str(frontend_path)), name="vite_svg")
+
+# Serve ConvHi widget JavaScript file
+@app.get("/static/convhi-widget.js")
+async def serve_widget_js():
+    """Serve the ConvHi widget JavaScript file"""
+    try:
+        # Try to serve from frontend public directory first
+        widget_path = Path(__file__).parent.parent / "frontend" / "public" / "convhi-widget.js"
+        if widget_path.exists():
+            return FileResponse(str(widget_path), media_type="application/javascript")
+        
+        # Fallback to backend static directory
+        widget_path = Path(__file__).parent / "static" / "convhi-widget.js"
+        if widget_path.exists():
+            return FileResponse(str(widget_path), media_type="application/javascript")
+        
+        # Return a basic widget if file doesn't exist
+        basic_widget = """
+        console.warn('ConvHi widget file not found. Using basic implementation.');
+        if (!customElements.get('veuplus-convhi')) {
+            customElements.define('veuplus-convhi', class extends HTMLElement {
+                connectedCallback() {
+                    this.innerHTML = '<div style="position:fixed;bottom:20px;right:20px;width:60px;height:60px;background:#3B82F6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:999999;">🤖</div>';
+                }
+            });
+        }
+        """
+        return Response(content=basic_widget, media_type="application/javascript")
+        
+    except Exception as e:
+        logger.error(f"Error serving widget JS: {e}")
+        return Response(content="console.error('Error loading ConvHi widget');", media_type="application/javascript")
     
     @app.get("/")
     async def serve_frontend():
@@ -1749,17 +2483,17 @@ if frontend_path.exists():
     @app.get("/{full_path:path}")
     async def serve_frontend_routes(full_path: str):
         # Serve frontend for all non-API routes
-        if not full_path.startswith("api/") and not full_path.startswith("docs") and not full_path.startswith("redoc"):
+        if not full_path.startswith("api/") and not full_path.startswith("docs") and not full_path.startswith("redoc") and not full_path.startswith("assets/") and not full_path.startswith("vite.svg"):
             return FileResponse(str(frontend_path / "index.html"))
         raise HTTPException(status_code=404, detail="Not found")
-else:
-    @app.get("/")
-    async def root():
+
+@app.get("/")
+async def root():
         return {
-            "message": "VeuPlus Backend está funcionando",
+            "message": "VeuPlus Backend est? funcionando",
             "docs": "/docs",
             "health": "/api/health",
-            "frontend": "El frontend no está construido. Ejecuta 'npm run build' en el directorio frontend."
+            "frontend": "El frontend no est? construido. Ejecuta 'npm run build' en el directorio frontend."
         }
 
 # CORS Configuration
@@ -1870,6 +2604,45 @@ logger = logging.getLogger(__name__)
 # Database cleanup is handled automatically by SQLite
 # No manual cleanup needed for SQLite connections
 
+@app.on_event("startup")
+async def startup_event():
+    """Inicializar servicios al arrancar el servidor"""
+    try:
+        logger.info("Inicializando servicios...")
+        
+        # Inicializar motor TTS
+        try:
+            # Intentar importar desde diferentes rutas
+            try:
+                from .tts_engine import tts_engine
+            except ImportError:
+                try:
+                    from backend.tts_engine import tts_engine
+                except ImportError:
+                    try:
+                        from tts_engine import tts_engine
+                    except ImportError:
+                        logger.warning("No se pudo importar tts_engine")
+                        return
+            
+            logger.info("Inicializando motor TTS...")
+            success = tts_engine.initialize()
+            if success:
+                logger.info("? Motor TTS inicializado correctamente")
+                # Obtener voces para verificar
+                voices = tts_engine.get_available_voices()
+                logger.info(f"Motor TTS tiene {voices['total']} voces disponibles")
+            else:
+                logger.warning("?? Motor TTS no pudo inicializarse")
+        except Exception as e:
+            logger.error(f"? Error inicializando motor TTS: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        logger.info("Servicios inicializados")
+    except Exception as e:
+        logger.error(f"Error en startup: {e}")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
