@@ -365,3 +365,4 @@ Després de la configuració:
 **El sistema estarà completament funcional!** 🚀
 
 
+

@@ -199,3 +199,4 @@ async def chat_with_agent(agent_id: str, message: ConversationMessage):
 Amb aquestes millores, el sistema arribaria a **8.5/10 de robustesa**.
 
 
+

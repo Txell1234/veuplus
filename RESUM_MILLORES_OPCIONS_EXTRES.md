@@ -138,3 +138,4 @@ else:
 - `ANALISI_ARQUITECTURA_COMPLETA.md` - Anàlisi basada en les imatges
 
 
+

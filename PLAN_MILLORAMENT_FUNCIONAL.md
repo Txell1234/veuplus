@@ -84,3 +84,4 @@ Millorar les funcionalitats actuals per fer-les controlables per l'usuari.
 **Temps estimat**: 2-3 hores
 
 
+

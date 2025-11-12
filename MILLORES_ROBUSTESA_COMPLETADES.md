@@ -151,3 +151,4 @@ El sistema VeuPlus ara té un **nivell de robustesa de 8.5/10**, fent-lo:
 **Recomanació**: El sistema és apropiat per producció amb les millores implementades. Les millores opcionals (rate limiting, etc.) es poden afegir segons necessitat.
 
 
+

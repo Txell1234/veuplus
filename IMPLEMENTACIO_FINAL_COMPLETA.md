@@ -192,3 +192,4 @@
 L'usuari ara POT configurar 100% tot visualment, sense checkboxes inútils.
 
 
+

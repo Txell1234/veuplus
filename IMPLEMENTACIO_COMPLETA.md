@@ -235,3 +235,4 @@
 **Conclusió**: 3 de 4 funcions totalment funcionals i user-friendly. Turn Taking necessita integració al chat principal.
 
 
+

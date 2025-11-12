@@ -470,3 +470,4 @@ async def synthesize_integrated(text: str, voice_id: str, language: str = "ca", 
 
 
 
+

@@ -93,3 +93,4 @@ Les correccions realitzades han solucionat els errors:
 Totes les pàgines estan disponibles i funcionals al frontend.
 
 
+

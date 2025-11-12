@@ -152,3 +152,4 @@ Després de les correccions:
 - ✅ Turn Taking només actiu si checkbox marcat
 
 
+

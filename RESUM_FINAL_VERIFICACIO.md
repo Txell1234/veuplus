@@ -376,3 +376,4 @@ Les veus catalanes hiperrealistes funcionen perfectament amb gravacions reals, e
 
 
 
+

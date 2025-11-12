@@ -211,3 +211,4 @@ Especialment:
 Aquestes parts també necessiten la mateixa dinàmica que hem creat per ConvHi Agents.
 
 
+

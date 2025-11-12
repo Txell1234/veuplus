@@ -211,3 +211,4 @@ import api from '../config/api'
 **Les noves pàgines són 100% funcionals i synced!** ✅
 
 
+

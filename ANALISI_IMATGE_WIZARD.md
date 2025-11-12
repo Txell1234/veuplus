@@ -80,3 +80,4 @@ Els canvis JA estan al codi, però NO es reflecteixen al navegador.
 3. O forçar un rebuild complet del frontend
 
 
+

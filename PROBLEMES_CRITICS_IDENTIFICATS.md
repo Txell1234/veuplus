@@ -93,3 +93,4 @@ Imatge mostra:
 - Sistema funcional que necessita millores UX
 
 
+

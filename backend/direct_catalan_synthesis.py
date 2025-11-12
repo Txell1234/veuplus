@@ -302,3 +302,4 @@ async def synthesize_direct_catalan(text: str, voice_id: str, language: str = "c
 
 
 
+

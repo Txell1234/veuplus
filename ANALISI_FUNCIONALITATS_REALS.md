@@ -188,3 +188,4 @@ Actualment:
 **Necessita implementació real o eliminar definitivament**.
 
 
+
